@@ -12,9 +12,11 @@
 
 void nuevoClienteRed(int tipo);
 void *accionesCliente(void *ptr);
+void eliminarCliente(struct Cliente **clienteAEliminar);
 void accionesTecnico(void *ptr);
 void accionesEncargado(void *ptr);
 void accionesTecnicoDomiciliario(void *ptr);
+void terminar(int señal);
 void escribeEnLog(char *id, char *msg);
 int calculaAleatorios(int min, int max);
 
@@ -34,25 +36,126 @@ struct Cliente{
     int id;
 
     /*
-     * -1 - si ya se marcha
-     *  0 - si no ha sido atendido
-     *  1 - si esta siendo atendido
+     * -1 - Si ya se marcha
+     *  0 - Si no ha sido atendido
+     *  1 - Si esta siendo atendido
      */
     int atendido;
     int tipo;
     int prioridad;
     int solicitud;
-}
+};
 
-struct 
 struct Cliente *listaClientes;
 
-int *listaApp;
-int *listaRed;
+struct Tecnico{
+    /*
+     *  0 - App
+     *  1 - Red
+     *  2 - Encargado
+     *  3 - Domiciliario
+     */
+    int tipo;
+    int solicitudes;
+
+    /*
+     *  0 - No
+     *  1 - Si
+     */
+    int atendiendo;
+    pthread_t hiloTecnico;
+};
+
+struct Tecnico *listaTecnicos;
 
 FILE *logFile;
 
 int main(int argc, char const *argv[]){
+    //Plantar semilla
+    srand(NULL);
+
+    //Definir estructuras de clientes y enmascarar señales
+    struct sigaction clienteApp = {0};
+    clienteApp.sa_handler = nuevoClienteRed;
+    struct sigaction clienteRed = {0};
+    clienteRed.sa_handler = nuevoClienteRed;
+    if(-1 == sigaction(SIGUSR1, &clienteApp, NULL)  || -1 == sigaction(SIGUSR2, &clienteRed, NULL) ){
+		perror("Error: LLamada a sigaction nuevo cliente.");
+		exit(-1);
+	}
+
+    //Definir estructura de fin y enmascar señales
+    struct sigaction fin = {0};
+	fin.sa_handler = terminar;
+	if( -1 == sigaction(SIGINT, &fin, NULL) ){
+		perror("Error: LLamada a sigaction terminar.");
+		exit(-1);
+	}
+
+    //Inicializar semáforos
+    if (pthread_mutex_init(&mutexFichero, NULL) != 0) exit(-1);
+    if (pthread_mutex_init(&mutexColaClientes, NULL) != 0) exit(-1);
+    if (pthread_mutex_init(&mutexSolicitudes, NULL) != 0) exit(-1);
+
+    //Inicializar contadores
+    contadorApp = 0;
+    contadorRed = 0;
+
+    //Inicializar lista de clientes
+    listaClientes = (struct Cliente*)malloc(sizeof(struct Cliente)*(contadorApp + contadorRed));
+
+    //Inicializar lista de tecnicos
+    listaTecnicos = (struct Tecnico*)malloc(sizeof(struct Tecnico)*6);
+
+    for (int i = 0; i < 6; i++) {
+        switch(1){
+            case 0:
+            case 1:
+                (listaTecnicos+i)->tipo = 0;
+                (listaTecnicos+i)->solicitudes = 0;
+                (listaTecnicos+i)->atendiendo = 0;
+                break;
+            case 4:
+                (listaTecnicos+i)->tipo = 2;
+                (listaTecnicos+i)->solicitudes = 0;
+                (listaTecnicos+i)->atendiendo = 0;
+                break;
+            case 5:
+                (listaTecnicos+i)->tipo = 3;
+                (listaTecnicos+i)->solicitudes = 0;
+                (listaTecnicos+i)->atendiendo = 0;
+                break;
+            default:
+                (listaTecnicos+i)->tipo = 1;
+                (listaTecnicos+i)->solicitudes = 0;
+                (listaTecnicos+i)->atendiendo = 0;
+        }
+    }
+
+    //Inicializar fichero de log
+    logFile = fopen("registroTiempos.log" , "wt");
+	fclose(logFile);
+
+    //Inicializar variable domicialiaria
+    numSolicitudes = 0;
+
+    //Inicializar variables condicion
+    if (pthread_cond_init(&condicionTecnicoDomiciliario, NULL) != 0) exit(-1);
+    if (pthread_cond_init(&condicionClienteDomiciliario, NULL) != 0) exit(-1);
+
+    //Crear los 6 hilos 
+    pthread_create(&listaTecnicos[0].hiloTecnico, NULL, accionesTecnico, NULL);
+    pthread_create(&listaTecnicos[1].hiloTecnico, NULL, accionesTecnico, NULL);
+    pthread_create(&listaTecnicos[2].hiloTecnico, NULL, accionesTecnico, NULL);
+    pthread_create(&listaTecnicos[3].hiloTecnico, NULL, accionesTecnico, NULL);
+    pthread_create(&listaTecnicos[4].hiloTecnico, NULL, accionesEncargado, NULL);
+    pthread_create(&listaTecnicos[5].hiloTecnico, NULL, accionesTecnicoDomiciliario, NULL);
+
+    //Esperar señales de forma infinita
+    while(TRUE){
+		pause();
+	}
+
     return 0;
 }
 
@@ -286,6 +389,3 @@ void writeLogMessage(char *id, char *msg) {
     fprintf(logFile, "[%s] %s: %s\n", stnow, id, msg);
     fclose(logFile);
 }
-
-
-
