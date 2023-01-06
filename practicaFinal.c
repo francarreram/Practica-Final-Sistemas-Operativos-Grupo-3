@@ -22,7 +22,7 @@ int calculaAleatorios(int min, int max);
 
 pthread_mutex_t mutexFichero;
 pthread_mutex_t mutexColaClientes;
-pthread_mutex_t mutexSolicitudes;
+pthread_mutex_t mutexSolicitudesDom;
 
 pthread_cond_t condicionTecnicoDomiciliario; 
 pthread_cond_t condicionClienteDomiciliario;
@@ -30,7 +30,7 @@ pthread_cond_t condicionClienteDomiciliario;
 int contadorApp;
 int contadorRed;
 
-int numSolicitudes;
+int numSolicitudesDom;
 
 struct Cliente{
     int id;
@@ -95,14 +95,22 @@ int main(int argc, char const *argv[]){
     //Inicializar semáforos
     if (pthread_mutex_init(&mutexFichero, NULL) != 0) exit(-1);
     if (pthread_mutex_init(&mutexColaClientes, NULL) != 0) exit(-1);
-    if (pthread_mutex_init(&mutexSolicitudes, NULL) != 0) exit(-1);
+    if (pthread_mutex_init(&mutexSolicitudesDom, NULL) != 0) exit(-1);
 
     //Inicializar contadores
     contadorApp = 0;
     contadorRed = 0;
 
     //Inicializar lista de clientes
-    listaClientes = (struct Cliente*)malloc(sizeof(struct Cliente)*(contadorApp + contadorRed));
+    listaClientes = (struct Cliente*)malloc(sizeof(struct Cliente)*(20));
+
+    for (int i = 0; i < 20; i++){
+        (listaClientes+i)->id = 0;
+        (listaClientes+i)->atendido = 0;
+        (listaClientes+i)->tipo = 0;
+        (listaClientes+i)->prioridad = 0;
+        (listaClientes+i)->solicitud = 0;
+    }
 
     //Inicializar lista de tecnicos
     listaTecnicos = (struct Tecnico*)malloc(sizeof(struct Tecnico)*6);
@@ -137,7 +145,7 @@ int main(int argc, char const *argv[]){
 	fclose(logFile);
 
     //Inicializar variable domicialiaria
-    numSolicitudes = 0;
+    numSolicitudesDom = 0;
 
     //Inicializar variables condicion
     if (pthread_cond_init(&condicionTecnicoDomiciliario, NULL) != 0) exit(-1);
@@ -376,6 +384,46 @@ void eliminarCliente(struct Cliente **clienteAEliminar){
 
 int calculaAleatorios(int min, int max){
 	return rand() % (max-min+1) + min;
+}
+
+void terminar(int señal){
+    char mensaje[100];
+    printf("Se va a finalizar el programa.\n");
+    sprintf(mensaje, "Se va a finalizar el programa.\n");
+    escribeEnLog("AVISO", mensaje);
+
+    //Bloquear el mutex de las solicitudes domiciliarias
+    pthread_mutex_lock(&mutexSolicitudesDom);
+
+    //Cerrar solicitudes domiciliarias
+    numSolicitudesDom = 0;
+
+    for (int i = 0; i < 20; i++){
+        (listaClientes+i)->solicitud = 0;
+    }
+
+    //Desbloquear los mutex de las solicitudes domiciliarias
+    pthread_mutex_unlock(&mutexSolicitudesDom);
+
+    while(TRUE) {
+        //Bloquear mutex de clientes para saber si se han acabado
+        pthread_mutex_lock(&mutexColaClientes);
+        if (contadorApp + contadorRed == 0){
+            //Liberar punteros
+            free(listaClientes);
+            free(listaTecnicos);
+
+            printf("Fin del programa.\n");
+            sprintf(mensaje, "Fin del programa.\n");
+            escribeEnLog("AVISO", mensaje);
+            
+            exit(0);
+        } else{
+            //Desbloquear el mutex hasta que se acaben los clientes
+            pthread_mutex_unlock(&mutexColaClientes);
+			sleep(1);
+        }
+    }
 }
 
 void writeLogMessage(char *id, char *msg) {
