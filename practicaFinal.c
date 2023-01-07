@@ -544,6 +544,58 @@ int calculaAleatorios(int min, int max){
 	return rand() % (max-min+1) + min;
 }
 
+void accionesTecnicoDomiciliario (void *ptr){
+
+while(TRUE){
+
+// se queda bloqueado el mutex si hay menos de 4 solicitudes
+
+pthread_mutex_lock(&mutexSolicitudesDom);
+while(numSolicitudesDom<4){
+pthreah_cond_wait(&condicionTecnicoDomicialrio, & mutexSolicitudesDom);
+}
+// guardamos en el log que va a comenzar la atencion
+
+char msg[100];
+pritnf(" Va comenzar la atención\n");
+sprintf(msg, " Va a comenzar la atención\n");
+escribeEnLog( "AVISO", msg);
+for(int i=0; i<5; i++){
+
+// guardamos en el log que el cliente ha sido atendido
+
+char atendido[100];
+pritnf(" cliente atendido\n");
+sprintf(atendido, " cliente atendido\n");
+escribeEnLog( "AVISO", atendido);
+
+// cambiamos el flag de solicitud del cliente
+
+listaClientes[i].solicitud==0;
+int idTecnico = *(int *)ptr;
+listaTecnicos[idTecnico].atendiendo=1;
+sleep(1);
+}
+
+// ponemos las solicitudes a 0
+
+solicitudesDom=0;
+
+// guardamos en el log que se ha finalizado la atencion
+
+char final[100];
+pritnf(" se ha finalizado la atencion domicialria\n");
+sprintf(final, " se ha finalizado la atencion domiciliaria\n");
+escribeEnLog( "AVISO", final);
+
+pthread_cond_signal(&condicionTecnicodomiciliario);
+
+pthread_mutex_unlock(&mutexSolicitudesDom);
+
+}
+}
+
+
 void terminar(int señal){
     char mensaje[100];
     printf("Se va a finalizar el programa.\n");

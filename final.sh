@@ -15,17 +15,9 @@ function ejecutar(){
         then
                 if test -x final
                 then
-                                echo -e "Introduzca el numero de asistentes de vuelo\n"
-
-                                read args
-
-                                if test $args -le 1
-                                        then echo -e "Debe haber mas de 1 asistente de vuelo\n"
-                                else
-                                        ./final $args
-
-                                fi
-
+                                if test -x final
+				then
+					./final
                 else
                         echo -e "El archivo no tiene permisos de ejecucion\n"
 
