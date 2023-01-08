@@ -713,17 +713,21 @@ pthreah_cond_wait(&condicionTecnicoDomicialrio, & mutexSolicitudesDom);
 // guardamos en el log que va a comenzar la atencion
 
 char msg[100];
+char aviso[100];
+char atendido[100];
+char sig[100];
 pritnf(" Va comenzar la atención\n");
 sprintf(msg, " Va a comenzar la atención\n");
-escribeEnLog( "AVISO", msg);
+sprintf(aviso, " Va a comenzar la atención\n");
+sprintf(sig, " Voy a por el siguiente\n");
+writeLogMessage( aviso, msg);
 for(int i=0; i<5; i++){
 
 // guardamos en el log que el cliente ha sido atendido
 
-char atendido[100];
-pritnf(" cliente atendido\n");
-sprintf(atendido, " cliente atendido\n");
-escribeEnLog( "AVISO", atendido);
+pritnf(" solictud nº %d atendida \n",i);
+sprintf(atendido, " cliente nº %d atendido\n",i);
+writeLogMessage( atendido, sig);
 
 // cambiamos el flag de solicitud del cliente
 
@@ -742,7 +746,7 @@ solicitudesDom=0;
 char final[100];
 pritnf(" se ha finalizado la atencion domicialria\n");
 sprintf(final, " se ha finalizado la atencion domiciliaria\n");
-escribeEnLog( "AVISO", final);
+writeLogMessage( aviso, final);
 
 pthread_cond_signal(&condicionTecnicodomiciliario);
 
