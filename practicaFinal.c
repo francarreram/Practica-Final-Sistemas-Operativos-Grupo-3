@@ -423,9 +423,9 @@ void *accionesTecnico(void *ptr){
                     num = calculaAleatorios(0,1);
                     if(num==1){
                         //Envio señal del cliente
-                        pthread_cond_signal(condicionClienteDomiciliario);
+                        pthread_cond_signal(condicionTecnicoDomiciliario);
                         //Espero a recibir la señal del tecnico domiciliario
-                        pthread_cond_wait(&condicionTecnicoDomiciliario, &mutexSolicitudesDom);
+                        pthread_cond_wait(&condicionClienteDomiciliario, &mutexSolicitudesDom);
                     }
                     pthread_mutex_unlock(&mutexSolicitudesDom);
 
@@ -439,9 +439,9 @@ void *accionesTecnico(void *ptr){
                     num = calculaAleatorios(0,1);
                     if(num==1){
                         //Envio señal del cliente
-                        pthread_cond_signal(condicionClienteDomiciliario);
+                        pthread_cond_signal(condicionTecnicoDomiciliario);
                         //Espero a recibir la señal del tecnico domiciliario
-                        pthread_cond_wait(&condicionTecnicoDomiciliario, &mutexSolicitudesDom);
+                        pthread_cond_wait(&condicionClienteDomiciliario, &mutexSolicitudesDom);
                     }
                     pthread_mutex_unlock(&mutexSolicitudesDom);
 
@@ -513,9 +513,9 @@ void *accionesTecnico(void *ptr){
                     num = calculaAleatorios(0,1);
                     if(num==1){
                         //Envio señal del cliente
-                        pthread_cond_signal(condicionClienteDomiciliario);
+                        pthread_cond_signal(condicionTecnicoDomiciliario);
                         //Espero a recibir la señal del tecnico domiciliario
-                        pthread_cond_wait(&condicionTecnicoDomiciliario, &mutexSolicitudesDom);
+                        pthread_cond_wait(&condicionClienteDomiciliario, &mutexSolicitudesDom);
                     }
                     pthread_mutex_unlock(&mutexSolicitudesDom);
 
@@ -529,9 +529,9 @@ void *accionesTecnico(void *ptr){
                     num = calculaAleatorios(0,1);
                     if(num==1){
                         //Envio señal del cliente
-                        pthread_cond_signal(condicionClienteDomiciliario);
+                        pthread_cond_signal(condicionTecnicoDomiciliario);
                         //Espero a recibir la señal del tecnico domiciliario
-                        pthread_cond_wait(&condicionTecnicoDomiciliario, &mutexSolicitudesDom);
+                        pthread_cond_wait(&condicionClienteDomiciliario, &mutexSolicitudesDom);
                     }
                     pthread_mutex_unlock(&mutexSolicitudesDom);
 
@@ -627,9 +627,9 @@ void *accionesEncargado(void *ptr){
                 num = calculaAleatorios(0,1);
                 if(num==1){
                     //Envio señal del cliente
-                    pthread_cond_signal(condicionClienteDomiciliario);
+                    pthread_cond_signal(condicionTecnicoDomiciliario);
                     //Espero a recibir la señal del tecnico domiciliario
-                    pthread_cond_wait(&condicionTecnicoDomiciliario, &mutexSolicitudesDom);
+                    pthread_cond_wait(&condicionClienteDomiciliario, &mutexSolicitudesDom);
                 }
                 pthread_mutex_unlock(&mutexSolicitudesDom);
                 
@@ -643,9 +643,9 @@ void *accionesEncargado(void *ptr){
                 num = calculaAleatorios(0,1);
                 if(num==1){
                     //Envio señal del cliente
-                    pthread_cond_signal(condicionClienteDomiciliario);
+                    pthread_cond_signal(condicionTecnicoDomiciliario);
                     //Espero a recibir la señal del tecnico domiciliario
-                    pthread_cond_wait(&condicionTecnicoDomiciliario, &mutexSolicitudesDom);
+                    pthread_cond_wait(&condicionClienteDomiciliario, &mutexSolicitudesDom);
                 }
                 pthread_mutex_unlock(&mutexSolicitudesDom);
 
