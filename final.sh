@@ -15,8 +15,6 @@ function ejecutar(){
         then
                 if test -x final
                 then
-                                if test -x final
-				then
 					./final
                 else
                         echo -e "El archivo no tiene permisos de ejecucion\n"
