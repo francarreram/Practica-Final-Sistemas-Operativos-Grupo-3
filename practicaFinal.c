@@ -15,15 +15,16 @@ void *accionesCliente(void *ptr);
 void eliminarCliente(struct Cliente **clienteAEliminar);
 void *accionesTecnico(void *ptr);
 void *accionesEncargado(void *ptr);
-void accionesTecnicoDomiciliario(void *ptr);
+void *accionesTecnicoDomiciliario(void *ptr);
 void terminar(int señal);
-void escribeEnLog(char *id, char *msg);
+void writeLogMessage(char *id, char *msg);
 int calculaAleatorios(int min, int max);
 
 pthread_mutex_t mutexFichero;
 pthread_mutex_t mutexColaClientes;
 pthread_mutex_t mutexSolicitudesDom;
 pthread_mutex_t mutexSolicitudesTecnicos;
+pthread_mutex_t mutexSolicitudesEncargado;
 
 pthread_cond_t condicionTecnicoDomiciliario; 
 pthread_cond_t condicionClienteDomiciliario;
@@ -98,6 +99,7 @@ int main(int argc, char const *argv[]){
     if (pthread_mutex_init(&mutexColaClientes, NULL) != 0) exit(-1);
     if (pthread_mutex_init(&mutexSolicitudesDom, NULL) != 0) exit(-1);
     if (pthread_mutex_init(&mutexSolicitudesTecnicos, NULL) != 0) exit(-1);
+    if (pthread_mutex_init(&mutexSolicitudesEncargado, NULL) != 0) exit(-1);
 
     //Inicializar contadores
     contadorApp = 0;
@@ -301,7 +303,7 @@ void *accionesCliente(void *ptr) {
                         sprintf(mensaje, "Se ha cansado de esperar y se va.");
                         sleep(8);
                     } else {
-                        sprintf(mensaje, "Se le ha caido la conexion y se va.")
+                        sprintf(mensaje, "Se le ha caido la conexion y se va.");
                     }
 
                     pthread_mutex_lock(&mutexFichero);
@@ -416,10 +418,32 @@ void *accionesTecnico(void *ptr){
                     sleep(calculaAleatorios(1,4));
                     writeLogMessage(mensaje, "Finaliza la atencion teniendo todo en orden");
 
+                    //Calcula si manda o no la solicitud domiciliaria
+                    pthread_mutex_lock(&mutexSolicitudesDom);
+                    num = calculaAleatorios(0,1);
+                    if(num==1){
+                        //Envio señal del cliente
+                        pthread_cond_signal(condicionClienteDomiciliario);
+                        //Espero a recibir la señal del tecnico domiciliario
+                        pthread_cond_wait(&condicionTecnicoDomiciliario, &mutexSolicitudesDom);
+                    }
+                    pthread_mutex_unlock(&mutexSolicitudesDom);
+
                 //- 10% mal identificados
                 }else if(num<90){
                     sleep(calculaAleatorios(2,6));
                     writeLogMessage(mensaje, "Finaliza la atencion y tiene errores en sus datos de identificacion");
+
+                    //Calcula si manda o no la solicitud domiciliaria
+                    pthread_mutex_lock(&mutexSolicitudesDom);
+                    num = calculaAleatorios(0,1);
+                    if(num==1){
+                        //Envio señal del cliente
+                        pthread_cond_signal(condicionClienteDomiciliario);
+                        //Espero a recibir la señal del tecnico domiciliario
+                        pthread_cond_wait(&condicionTecnicoDomiciliario, &mutexSolicitudesDom);
+                    }
+                    pthread_mutex_unlock(&mutexSolicitudesDom);
 
                 //- 10% se ha confunfido de compañia
                 }else{
@@ -484,10 +508,32 @@ void *accionesTecnico(void *ptr){
                     sleep(calculaAleatorios(1,4));
                     writeLogMessage(mensaje, "Finaliza la atencion teniendo todo en orden");
 
+                    //Calcula si manda o no la solicitud domiciliaria
+                    pthread_mutex_lock(&mutexSolicitudesDom);
+                    num = calculaAleatorios(0,1);
+                    if(num==1){
+                        //Envio señal del cliente
+                        pthread_cond_signal(condicionClienteDomiciliario);
+                        //Espero a recibir la señal del tecnico domiciliario
+                        pthread_cond_wait(&condicionTecnicoDomiciliario, &mutexSolicitudesDom);
+                    }
+                    pthread_mutex_unlock(&mutexSolicitudesDom);
+
                 //- 10% mal identificados
                 }else if(num<90){
                     sleep(calculaAleatorios(2,6));
                     writeLogMessage(mensaje, "Finaliza la atencion y tiene errores en sus datos de identificacion");
+
+                    //Calcula si manda o no la solicitud domiciliaria
+                    pthread_mutex_lock(&mutexSolicitudesDom);
+                    num = calculaAleatorios(0,1);
+                    if(num==1){
+                        //Envio señal del cliente
+                        pthread_cond_signal(condicionClienteDomiciliario);
+                        //Espero a recibir la señal del tecnico domiciliario
+                        pthread_cond_wait(&condicionTecnicoDomiciliario, &mutexSolicitudesDom);
+                    }
+                    pthread_mutex_unlock(&mutexSolicitudesDom);
 
                 //- 10% se ha confunfido de compañia
                 }else{
@@ -508,20 +554,18 @@ void *accionesTecnico(void *ptr){
 
                 pthread_mutex_unlock(&mutexSolicitudesTecnicos);
             }
-                
         }
-
-        
     }
 }
 
 
 
 void *accionesEncargado(void *ptr){
+
     //El encargado esta constantemente atendiendo clientes
     while(TRUE){
         
-        pthread_mutex_lock(&mutexAccionEncargado);
+        pthread_mutex_lock(&mutexSolicitudesEncargado);
 
         //Obtememos posicion del ciente de tipo red con mayor prioridad o si hay empate, de que haya llegado antes
         int posClienteRed=-1;
@@ -550,7 +594,7 @@ void *accionesEncargado(void *ptr){
         //Si el tecnico no encuentra clientes espera 3s y vuelve al principio
         if(posClienteRed==-1 && posClienteApp==-1){
             sleep(3);
-            pthread_mutex_unlock(&mutexAccionEncargado);
+            pthread_mutex_unlock(&mutexSolicitudesEncargado);
 
         //Si lo encuentra, el encargado lo atiende
         }else{
@@ -578,10 +622,32 @@ void *accionesEncargado(void *ptr){
                 sleep(calculaAleatorios(1,4));
                 writeLogMessage(mensaje, "Finaliza la atencion teniendo todo en orden");
 
+                //Calcula si manda o no la solicitud domiciliaria
+                pthread_mutex_lock(&mutexSolicitudesDom);
+                num = calculaAleatorios(0,1);
+                if(num==1){
+                    //Envio señal del cliente
+                    pthread_cond_signal(condicionClienteDomiciliario);
+                    //Espero a recibir la señal del tecnico domiciliario
+                    pthread_cond_wait(&condicionTecnicoDomiciliario, &mutexSolicitudesDom);
+                }
+                pthread_mutex_unlock(&mutexSolicitudesDom);
+                
             //- 10% mal identificados
             }else if(num<90){
                 sleep(calculaAleatorios(2,6));
                 writeLogMessage(mensaje, "Finaliza la atencion y tiene errores en sus datos de identificacion");
+
+                //Calcula si manda o no la solicitud domiciliaria
+                pthread_mutex_lock(&mutexSolicitudesDom);
+                num = calculaAleatorios(0,1);
+                if(num==1){
+                    //Envio señal del cliente
+                    pthread_cond_signal(condicionClienteDomiciliario);
+                    //Espero a recibir la señal del tecnico domiciliario
+                    pthread_cond_wait(&condicionTecnicoDomiciliario, &mutexSolicitudesDom);
+                }
+                pthread_mutex_unlock(&mutexSolicitudesDom);
 
             //- 10% se ha confunfido de compañia
             }else{
@@ -595,10 +661,8 @@ void *accionesEncargado(void *ptr){
             //Cambiamos flag de atendiendo
             listaTecnicos[4].atendiendo=0;
 
-            pthread_mutex_unlock(&mutexAccionEncargado);
-
+            pthread_mutex_unlock(&mutexSolicitudesEncargado);
         }
-
     }
 }
 
@@ -735,7 +799,7 @@ void writeLogMessage(char *id, char *msg) {
     char stnow[25];
     strftime(stnow, 25, "%d/%m/%y %H:%M:%S", tlocal);
     // Escribimos en el log
-    logFile = fopen(logFileName, "a");
+    logFile = fopen("registroTiempos.log", "a");
     fprintf(logFile, "[%s] %s: %s\n", stnow, id, msg);
     fclose(logFile);
 }
