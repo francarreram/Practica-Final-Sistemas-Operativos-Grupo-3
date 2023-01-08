@@ -73,7 +73,7 @@ FILE *logFile;
 
 int main(int argc, char const *argv[]){
     //Plantar semilla
-    srand(NULL);
+    srand(getpid());
 
     //Definir estructuras de clientes y enmascarar señales
     struct sigaction clienteApp = {0};
@@ -97,6 +97,7 @@ int main(int argc, char const *argv[]){
     if (pthread_mutex_init(&mutexFichero, NULL) != 0) exit(-1);
     if (pthread_mutex_init(&mutexColaClientes, NULL) != 0) exit(-1);
     if (pthread_mutex_init(&mutexSolicitudesDom, NULL) != 0) exit(-1);
+    if (pthread_mutex_init(&mutexSolicitudesTecnicos, NULL) != 0) exit(-1);
 
     //Inicializar contadores
     contadorApp = 0;
@@ -165,13 +166,13 @@ int main(int argc, char const *argv[]){
     if (pthread_cond_init(&condicionClienteDomiciliario, NULL) != 0) exit(-1);
 
     //Crear los 6 hilos 
-    int pos[6]={0,1,2,3,4,5}
-    pthread_create(&listaTecnicos[0].hiloTecnico, NULL, accionesTecnico, (void*)&pos[0]);
-    pthread_create(&listaTecnicos[1].hiloTecnico, NULL, accionesTecnico, (void*)&pos[1]);
-    pthread_create(&listaTecnicos[2].hiloTecnico, NULL, accionesTecnico, (void*)&pos[2]);
-    pthread_create(&listaTecnicos[3].hiloTecnico, NULL, accionesTecnico, (void*)&pos[3]);
-    pthread_create(&listaTecnicos[4].hiloTecnico, NULL, accionesEncargado, (void*)&pos[4]);
-    pthread_create(&listaTecnicos[5].hiloTecnico, NULL, accionesTecnicoDomiciliario, (void*)&pos[5]);
+    int pos=0;
+    pthread_create(&listaTecnicos[0].hiloTecnico, NULL, accionesTecnico, (void*)(intptr_t)pos++);
+    pthread_create(&listaTecnicos[1].hiloTecnico, NULL, accionesTecnico, (void*)(intptr_t)pos++);
+    pthread_create(&listaTecnicos[2].hiloTecnico, NULL, accionesTecnico, (void*)(intptr_t)pos++);
+    pthread_create(&listaTecnicos[3].hiloTecnico, NULL, accionesTecnico, (void*)(intptr_t)pos++);
+    pthread_create(&listaTecnicos[4].hiloTecnico, NULL, accionesEncargado, NULL);
+    pthread_create(&listaTecnicos[5].hiloTecnico, NULL, accionesTecnicoDomiciliario, NULL);
 
     //Esperar señales de forma infinita
     while(TRUE){
@@ -369,145 +370,236 @@ void *accionesCliente(void *ptr) {
 }
 
 void *accionesTecnico(void *ptr){
+    //El tecnico esta constantemente atendiento a clientes
+    while(TRUE){
 
-    while(TRUE){  
+        int posTecnico = (intptr_t)ptr;
 
-        //Guarda la posicion del tecnico en la listaTecnicos
-        int idTecnico = *(int *)ptr;
+        //Si esta en la posicion 0 o 1 es un tecnico de app
+        if( (posTecnico==0 || posTecnico==1) && listaTecnicos[posTecnico].atendiendo==0 ){
 
-        //1. El tecnico busca al cliente de su tipo con mas prioridad o que lleve mas tiempo esperando
-
-        //1.1 Tecnico app se encarga de atender a los clientes app
-        if( (idTecnico==0 || idTecnico==1) && listaTecnicos[idTecnico].atendiendo==0 ){
             pthread_mutex_lock(&mutexSolicitudesTecnicos);
-            //Obtenemos posicion del cliente con mayor prioridad
-            int pos=-1;
-            int count=0;
-            for(int i=0; int<numSolicitudes; i++){
-
-                idTecnico = *(int *)ptr;
-                if(listaClientes[i].tipo==0 && listaClientes[i].atendido==0){
-                    ++count;
-                    if(listaClientes[i].prioridad>listaClientes[pos].prioridad){
-                        pos=i;
-                    }
-                        
-                }
+            
+            //Obtememos posicion del ciente de tipo app con mayor prioridad o si hay empate, de que haya llegado antes
+            int posCliente=-1;
+            int prioMax=0;
+            for(int i=0; i<contadorApp+contadorRed && i<20; i++){
+                    
+                if(listaClientes[i].tipo==0 && listaClientes[i].atendido==0 && listaClientes[i].prioridad>prioMax){
+                    posCliente=i;
+                    prioMax=listaClientes[i].prioridad;
+                }             
             }
 
-            //a. Si no hay clientes de su tipo espera 3s y vuelve a 1
-            if(count==0){
-                sleep(3);
+            //Si el tecnico no encuentra clientes espera 1s y vuelve al principio
+            if(posCliente==-1){
+                sleep(1);
                 pthread_mutex_unlock(&mutexSolicitudesTecnicos);
+
+            //Si lo encuentra, el tecnico lo atiende
             }else{
 
-                //2. cambiamos el flag 
-                listaTecnicos[idTecnico].atendiendo=1; 
-                listaTecnicos[idTecnico].solicitudes++;
+                //Cambiamos flag de atendido
+                listaClientes[posCliente].atendido=1;
 
-                //3. Calculamos el tipo de atencion
+                //Cambiamos flag de atendiendo
+                listaTecnicos[posTecnico].atendiendo=1;
+
+                //Calculamos el tipo de atencion del cliente
                 int num = calculaAleatorios(0,100);
-
-                //80% tiene todo en orden
+                char mensaje[100];
+                int numSolicitud = contadorApp+contadorRed;
+                sprintf(mensaje, "Solicitud numero %d de tipo %d", numSolicitud, listaClientes[posCliente].tipo);
+                writeLogMessage(mensaje, "Comienza atencion");
+                //- 80% tiene todo en orden
                 if(num<80){
                     sleep(calculaAleatorios(1,4));
-                    //Falta logs y enviar solicitud dom
+                    writeLogMessage(mensaje, "Finaliza la atencion teniendo todo en orden");
 
-                //10% mal identificados
+                //- 10% mal identificados
                 }else if(num<90){
                     sleep(calculaAleatorios(2,6));
-                    //Falta logs y enviar solicitud dom
+                    writeLogMessage(mensaje, "Finaliza la atencion y tiene errores en sus datos de identificacion");
 
-                //10% se ha confunfido de compañia
+                //- 10% se ha confunfido de compañia
                 }else{
                     sleep(calculaAleatorios(1,2));
-                    //Falta logs y abandonar el sistema
+                    writeLogMessage(mensaje, "Finaliza la atencion por confundirse de compañia");
                 }
 
-                //8. Cambiamos flag
-                listaClientes[pos].atendido=1; 
+                //Incrementamos el numero de solicutudes atendidas
+                listaTecnicos[posTecnico].solicitudes++;
 
-                //9. Tecnico mira si tiene que descansar
-                if(listaTecnicos[idTecnico].solicitudes>=5){
+                //Tecnico mira si tiene que descansar
+                if(listaTecnicos[posTecnico].solicitudes>=5){
                     sleep(5);
                 }
+                
+                //Cambiamos flag de atendiendo
+                listaTecnicos[posTecnico].atendiendo=0;
 
-                //Desbloqueamos el mutex y volvemos a 1 
                 pthread_mutex_unlock(&mutexSolicitudesTecnicos);
-
             }
+ 
         }
 
-        //1.2 Tecnico red se encarga de atender a los clientes red
-        if((idTecnico==2 || idTecnico==3) && listaTecnicos[idTecnico].atendiendo==0 ){
-            pthread_mutex_lock(&mutexSolicitudesTecnicos);
-            //Obtenemos posicion del cliente con mayor prioridad
-            int pos=-1;
-            int count=0;
-            for(int i=0; int<numSolicitudes; i++){
+        //Si esta en la posicion 2 o 3 es un tecnico de app
+        if( (posTecnico==2 || posTecnico==3) && listaTecnicos[posTecnico].atendiendo==0 ){
 
-                idTecnico = *(int *)ptr;
-                if(listaClientes[i].tipo==1 && listaClientes[i].atendido==0){
-                    ++count;
-                    if(listaClientes[i].prioridad>listaClientes[pos].prioridad){
-                        pos=i;
-                    }
-                        
-                }
+            pthread_mutex_lock(&mutexSolicitudesTecnicos);;
+
+            //Obtememos posicion del ciente de tipo red con mayor prioridad o si hay empate, de que haya llegado antes
+            int posCliente=-1;
+            int prioMax=0;
+            for(int i=0; i<contadorApp+contadorRed && i<20; i++){
+                  
+                if(listaClientes[i].tipo==1 && listaClientes[i].atendido==0 && listaClientes[i].prioridad>prioMax){
+                        posCliente=i;
+                        prioMax=listaClientes[i].prioridad;
+                }             
             }
 
-            //a. Si no hay clientes de su tipo espera 3s y vuelve a 1
-            if(count==0){
-                sleep(3);
+            //Si el tecnico no encuentra clientes espera 1s y vuelve al principio
+            if(posCliente==-1){
+                sleep(1);
                 pthread_mutex_unlock(&mutexSolicitudesTecnicos);
+
+            //Si lo encuentra, el tecnico lo atiende
             }else{
 
-                //2. cambiamos el flag 
-                listaTecnicos[idTecnico].atendiendo=1; 
-                listaTecnicos[idTecnico].solicitudes++;
+                //Cambiamos flag de atendido
+                listaClientes[posCliente].atendido=1;
 
-                //Calculamos el tipo de atencion
+                //Cambiamos flag atendiendo
+                listaTecnicos[posTecnico].atendiendo=1;
+
+                //Calculamos el tipo de atencion del cliente
                 int num = calculaAleatorios(0,100);
-
-                //80% tiene todo en orden
+                char mensaje[100];
+                int numSolicitud = contadorApp+contadorRed+1;
+                sprintf(mensaje, "Solicitud numero %d de tipo %d", numSolicitud, listaClientes[posCliente].tipo);
+                writeLogMessage(mensaje, "Comienza atencion");
+                //- 80% tiene todo en orden
                 if(num<80){
                     sleep(calculaAleatorios(1,4));
-                    //Falta logs y enviar solicitud dom
+                    writeLogMessage(mensaje, "Finaliza la atencion teniendo todo en orden");
 
-                //10% mal identificados
+                //- 10% mal identificados
                 }else if(num<90){
                     sleep(calculaAleatorios(2,6));
-                    //Falta logs y enviar solicitud dom
+                    writeLogMessage(mensaje, "Finaliza la atencion y tiene errores en sus datos de identificacion");
 
-                //10% se ha confunfido de compañia
+                //- 10% se ha confunfido de compañia
                 }else{
                     sleep(calculaAleatorios(1,2));
-                    //Falta logs y abandonar el sistema
+                    writeLogMessage(mensaje, "Finaliza la atencion por confundirse de compañia");
                 }
 
-                //8. Cambiamos flag
-                listaClientes[pos].atendido=1; 
+                //Incrementamos el numero de solicutudes atendidas
+                listaTecnicos[posTecnico].solicitudes++;
 
-                //9. Tecnico mira si tiene que descansar
-                if(listaTecnicos[idTecnico].solicitudes>=5){
+                //Tecnico mira si tiene que descansar
+                if(listaTecnicos[posTecnico].solicitudes>=5){
                     sleep(5);
                 }
+                
+                //Cambiamos flag de atendiendo
+                listaTecnicos[posTecnico].atendiendo=0;
 
-                //Desbloqueamos el mutex y volvemos a 1 
                 pthread_mutex_unlock(&mutexSolicitudesTecnicos);
-
             }
-
+                
         }
+
+        
     }
-
-
 }
 
 
 
 void *accionesEncargado(void *ptr){
+    //El encargado esta constantemente atendiendo clientes
+    while(TRUE){
+        
+        pthread_mutex_lock(&mutexAccionEncargado);
 
+        //Obtememos posicion del ciente de tipo red con mayor prioridad o si hay empate, de que haya llegado antes
+        int posClienteRed=-1;
+        int prioMax=0;
+        for(int i=0; i<contadorApp+contadorRed && i<20; i++){
+                  
+            if(listaClientes[i].tipo==1 && listaClientes[i].atendido==0 && listaClientes[i].prioridad>prioMax){
+                posClienteRed=i;
+                prioMax=listaClientes[i].prioridad;
+            }             
+        }
+
+        //Si el encargado no encuentra clientes de tipo red busca si hay de tipo app
+        int posClienteApp=-1;
+        if(posClienteRed==-1){
+
+            prioMax=0;
+            for(int i=0; i<contadorApp+contadorRed && i<20; i++){
+                  
+                if(listaClientes[i].tipo==0 && listaClientes[i].atendido==0 && listaClientes[i].prioridad>prioMax){
+                    posClienteRed=i;
+                    prioMax=listaClientes[i].prioridad;
+                }             
+            }
+        }
+        //Si el tecnico no encuentra clientes espera 3s y vuelve al principio
+        if(posClienteRed==-1 && posClienteApp==-1){
+            sleep(3);
+            pthread_mutex_unlock(&mutexAccionEncargado);
+
+        //Si lo encuentra, el encargado lo atiende
+        }else{
+
+            //Guardamos la posicion del cliente
+            int posCliente=posClienteApp;
+            if(posClienteRed!=-1){
+                posCliente=posClienteRed;
+            }
+
+            //Cambiamos flag de atendido
+            listaClientes[posCliente].atendido=1;
+
+            //Cambiamos flag atendiendo
+            listaTecnicos[4].atendiendo=1;
+
+            //Calculamos el tipo de atencion del cliente
+            int num = calculaAleatorios(0,100);
+            char mensaje[100];
+            int numSolicitud = contadorApp+contadorRed+1;
+            sprintf(mensaje, "Solicitud numero %d de tipo %d", numSolicitud, listaClientes[posCliente].tipo);
+            writeLogMessage(mensaje, "Comienza atencion");
+            //- 80% tiene todo en orden
+            if(num<80){
+                sleep(calculaAleatorios(1,4));
+                writeLogMessage(mensaje, "Finaliza la atencion teniendo todo en orden");
+
+            //- 10% mal identificados
+            }else if(num<90){
+                sleep(calculaAleatorios(2,6));
+                writeLogMessage(mensaje, "Finaliza la atencion y tiene errores en sus datos de identificacion");
+
+            //- 10% se ha confunfido de compañia
+            }else{
+                sleep(calculaAleatorios(1,2));
+                writeLogMessage(mensaje, "Finaliza la atencion por confundirse de compañia");
+            }
+
+            //Cambiamos flag de atendido
+            listaClientes[posCliente].atendido=1;
+
+            //Cambiamos flag de atendiendo
+            listaTecnicos[4].atendiendo=0;
+
+            pthread_mutex_unlock(&mutexAccionEncargado);
+
+        }
+
+    }
 }
 
 
