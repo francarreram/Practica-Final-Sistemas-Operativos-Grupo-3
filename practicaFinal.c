@@ -10,16 +10,6 @@
 
 #define TRUE 1
 
-void nuevoClienteRed(int tipo);
-void *accionesCliente(void *ptr);
-void eliminarCliente(struct Cliente **clienteAEliminar);
-void *accionesTecnico(void *ptr);
-void *accionesEncargado(void *ptr);
-void *accionesTecnicoDomiciliario(void *ptr);
-void terminar(int señal);
-void writeLogMessage(char *id, char *msg);
-int calculaAleatorios(int min, int max);
-
 pthread_mutex_t mutexFichero;
 pthread_mutex_t mutexColaClientes;
 pthread_mutex_t mutexSolicitudesDom;
@@ -46,7 +36,13 @@ struct Cliente{
     int tipo;
     int prioridad;
     int solicitud;
+
+    struct Cliente *ant;
+    struct Cliente *sig;
 };
+
+struct Cliente *primerCliente;
+struct Cliente *ultimoCliente;
 
 struct Cliente *listaClientes;
 
@@ -69,6 +65,16 @@ struct Tecnico{
 };
 
 struct Tecnico *listaTecnicos;
+
+void nuevoClienteRed(int tipo);
+void *accionesCliente(void *ptr);
+void eliminarCliente(struct Cliente **clienteAEliminar);
+void *accionesTecnico(void *ptr);
+void *accionesEncargado(void *ptr);
+void *accionesTecnicoDomiciliario(void *ptr);
+void terminar(int señal);
+void writeLogMessage(char *id, char *msg);
+int calculaAleatorios(int min, int max);
 
 FILE *logFile;
 
@@ -193,14 +199,14 @@ int main(int argc, char const *argv[]){
  */
 void nuevoCienteRed(int tipo) { //No se si esto lo he entendido bien, creo que sobrea el argumento ya que solo se crean los clientes de red.
     // Restablecer la señal
-    if(signal(tipo, nuevoCliente) == SIG_ERR){
+    if(signal(tipo, nuevoClienteRed) == SIG_ERR){
         perror("Llamada a signal");
         exit(-1);
     }
     // 1. Comprobar si hay espacio en la lista de clientes.
     pthread_mutex_lock(&mutexColaClientes);
 
-    if (numSolicitudes < contadorRed){ //Creo que seria asi teniendo en cuenta que solo se crean clientes de tipo red
+    if (numSolicitudesDom < contadorRed){ //Creo que seria asi teniendo en cuenta que solo se crean clientes de tipo red
         //Caso a.
         // i. Añadir cliente a la lista
         struct Cliente *clienteNuevo;
@@ -226,7 +232,7 @@ void nuevoCienteRed(int tipo) { //No se si esto lo he entendido bien, creo que s
         }
 
         // iii. Establecer el id del cliente
-        clienteNuevo->id=totalClientes; //No entiendo esto
+        clienteNuevo->id = contadorRed + contadorApp;
 
         // iv. Establecer el flag de atendido
         clienteNuevo->atendido = 0;
@@ -311,7 +317,7 @@ void *accionesCliente(void *ptr) {
                     writeLogMessage(type, mensaje);
                     pthread_mutex_unlock(&mutexFichero);
 
-                    paciente->atendido = -1; //Liberamos el espacio en la cola y finalizamos el hilo.
+                    cliente->atendido = -1; //Liberamos el espacio en la cola y finalizamos el hilo.
                     eliminarCliente(&cliente);
                     pthread_exit(NULL);
                 }
@@ -326,12 +332,13 @@ void *accionesCliente(void *ptr) {
 
     pthread_mutex_lock(&mutexColaClientes);
 
-    comportamiento = calculaAleatorios(1, 100)
+    comportamiento = calculaAleatorios(1, 100);
+
     while(atendido == 1) {
         if(cliente->tipo == 1 && comportamiento <= 30) {
             // 5.
             do {
-                numSolicitudes++;
+                numSolicitudesDom++;
 
                 // i.
                 sprintf(mensaje, "El cliente espera ser atendido.");
@@ -343,8 +350,8 @@ void *accionesCliente(void *ptr) {
                 cliente->solicitud = 1;
 
                 // iii. y iv.
-                if(numSolicitud == 4) {
-                    pthread_mutex_lock(&mutexSolicitudesTecnico);
+                if(numSolicitudesDom == 4) {
+                    pthread_mutex_lock(&mutexSolicitudesTecnicos);
 
                     pthread_cond_signal(&condicionTecnicoDomiciliario);
                     
@@ -353,7 +360,7 @@ void *accionesCliente(void *ptr) {
                     writeLogMessage(type, mensaje);
                     pthread_mutex_unlock(&mutexFichero);
 
-                    pthread_cond_wait(&condicionTecnicoDomiciliario, &mutexSolicitudesTecnico);
+                    pthread_cond_wait(&condicionTecnicoDomiciliario, &mutexSolicitudesTecnicos);
                     pthread_cond_signal(&condicionTecnicoDomiciliario);
 
                     pthread_mutex_unlock(&mutexSolicitudesTecnicos);
@@ -368,12 +375,12 @@ void *accionesCliente(void *ptr) {
 
                 sleep(2);
 
-            }while(numSolicitudes < 4);
+            }while(numSolicitudesDom < 4);
         } else {
-            paciente->atendido = -1;
+            cliente->atendido = -1;
             eliminarCliente(&cliente);
 
-            sprintf(mensaje, "El cliente ha terminado.")
+            sprintf(mensaje, "El cliente ha terminado.");
             pthread_mutex_lock(&mutexFichero);
             writeLogMessage(type, mensaje);
             pthread_mutex_unlock(&mutexFichero);
