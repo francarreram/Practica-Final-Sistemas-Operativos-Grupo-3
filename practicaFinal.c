@@ -39,6 +39,8 @@ struct Cliente{
 
     struct Cliente *ant;
     struct Cliente *sig;
+
+    pthread_t hiloUsuario;
 };
 
 struct Cliente *primerCliente;
@@ -66,7 +68,7 @@ struct Tecnico{
 
 struct Tecnico *listaTecnicos;
 
-void nuevoClienteRed(int tipo);
+void nuevoClienteRed(int signal);
 void *accionesCliente(void *ptr);
 void eliminarCliente(struct Cliente **clienteAEliminar);
 void *accionesTecnico(void *ptr);
@@ -130,7 +132,7 @@ int main(int argc, char const *argv[]){
 
             //Tecnicos app
             case 0:
-            (listaTecnicos+i)->tipo = 0;
+                (listaTecnicos+i)->tipo = 0;
                 (listaTecnicos+i)->solicitudes = 0;
                 (listaTecnicos+i)->atendiendo = 0;
                 break;
@@ -204,36 +206,36 @@ int main(int argc, char const *argv[]){
  *  0: Cliente app
  *  1: Cliente red
  */
-void nuevoCienteRed(int tipo) { //No se si esto lo he entendido bien, creo que sobrea el argumento ya que solo se crean los clientes de red.
+void nuevoCienteRed(int signal) { //No se si esto lo he entendido bien, creo que sobrea el argumento ya que solo se crean los clientes de red.
   
     //Comprobamos si hay espacio en la lista de clientes
     if(contadorApp+contadorRed<20){
-        pthread_mutex_lock(&mutexNuevoCliente);
+        pthread_mutex_lock(&mutexColaClientes);
         
         //Calculamos prioridad del cliemte
         int prioridadCliente = calculaAleatorios(1, 10);
         listaClientes[contadorApp+contadorRed].prioridad=prioridadCliente;
         
         //Dependiendo de la señal calculamos el id y el tipo, tambien incrementamos el contador
-    	switch(signal){
-			case SIGUSR1:
-            listaClientes[contadorApp+contadorRed].id=contadorApp+1;
-			listaClientes[contadorApp+contadorRed].tipo=0;
-            //Creamos el hilo y pasamos como parametro la posicion del cliente en listaClientes
-			pthread_create(&listaClientes[contadorApp+contadorRed].hiloUsuario, NULL, accionesCliente, (void *)(intptr_t)contadorApp+contadorRed);
-			contadorApp++;
-            break;
+        switch(signal) {
+            case SIGUSR1:
+                listaClientes[contadorApp+contadorRed].id=contadorApp+1;
+                listaClientes[contadorApp+contadorRed].tipo=0;
+                //Creamos el hilo y pasamos como parametro la posicion del cliente en listaClientes
+                pthread_create(&listaClientes[contadorApp+contadorRed].hiloUsuario, NULL, accionesCliente, (void *)(intptr_t)contadorApp+contadorRed);                  
+                contadorApp++;
+                break;
 
-			case SIGUSR2:
-            listaClientes[contadorApp+contadorRed].id=contadorRed+1;
-			listaClientes[contadorApp+contadorRed].tipo=1;
-            //Creamos el hilo y pasamos como parametro la posicion del cliente en listaClientes
-			pthread_create(&listaClientes[contadorApp+contadorRed].hiloUsuario, NULL, accionesCliente, (void *)(intptr_t)contadorApp+contadorRed);  
-			contadorRed++;
-            break;
-		}
+            case SIGUSR2:
+                listaClientes[contadorApp+contadorRed].id=contadorRed+1;
+                listaClientes[contadorApp+contadorRed].tipo=1;
+                //Creamos el hilo y pasamos como parametro la posicion del cliente en listaClientes
+                pthread_create(&listaClientes[contadorApp+contadorRed].hiloUsuario, NULL, accionesCliente, (void *)(intptr_t)contadorApp+contadorRed);  
+                contadorRed++;
+                break;
+        }
 
-        pthread_mutex_unlock(&mutexNuevoCliente);
+        pthread_mutex_unlock(&mutexColaClientes);
     }
    
 }
@@ -681,7 +683,7 @@ void eliminarCliente(struct Cliente **clienteAEliminar){
         (*clienteAEliminar)->ant->sig=(*clienteAEliminar)->sig;
         (*clienteAEliminar)->sig->ant = (*clienteAEliminar)->ant;
     }else if((*clienteAEliminar)->ant != NULL){
-        clientePaciente = (*clienteAEliminar)->ant;
+        ultimoCliente = (*clienteAEliminar)->ant;
         (*clienteAEliminar)->ant->sig = NULL;
 
     }else if((*clienteAEliminar)->sig != NULL){
@@ -692,7 +694,7 @@ void eliminarCliente(struct Cliente **clienteAEliminar){
         ultimoCliente = NULL;
     }
 
-    contadorClientes --;
+    contadorApp--;
     free(*clienteAEliminar);
     printf("Eliminado el cliente \n");
     pthread_mutex_unlock(&mutexColaClientes);
