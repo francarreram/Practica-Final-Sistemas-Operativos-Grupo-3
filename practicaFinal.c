@@ -205,65 +205,37 @@ int main(int argc, char const *argv[]){
  *  1: Cliente red
  */
 void nuevoCienteRed(int tipo) { //No se si esto lo he entendido bien, creo que sobrea el argumento ya que solo se crean los clientes de red.
-    // Restablecer la señal
-    if(signal(tipo, nuevoClienteRed) == SIG_ERR){
-        perror("Llamada a signal");
-        exit(-1);
-    }
-    // 1. Comprobar si hay espacio en la lista de clientes.
-    pthread_mutex_lock(&mutexColaClientes);
-
-    if (numSolicitudesDom < contadorRed){ //Creo que seria asi teniendo en cuenta que solo se crean clientes de tipo red
-        //Caso a.
-        // i. Añadir cliente a la lista
-        struct Cliente *clienteNuevo;
-        clienteNuevo = malloc(sizeof *clienteNuevo);
-
-        clienteNuevo->sig = NULL;
-        clienteNuevo->ant = NULL;
-
-        if (primerCliente == NULL){ //Se añadiria el cliente como el primero de la cola
-            primerCliente = clienteNuevo;
-            ultimoCliente = primerCliente;
-        } else { //Se añade el cliente despues del ultimo cliente, el nuevo cliente no es el primero
-            clienteNuevo->ant = ultimoCliente;
-            ultimoCliente->sig = clienteNuevo;
-            ultimoCliente = clienteNuevo;
-        }
-
-        // ii. Aumentar contador clientes
-        if(tipo == 0) {
-            contadorApp++;
-        } else {
-            contadorRed++;
-        }
-
-        // iii. Establecer el id del cliente
-        clienteNuevo->id = contadorRed + contadorApp;
-
-        // iv. Establecer el flag de atendido
-        clienteNuevo->atendido = 0;
-
-        // v. Establecer el tipo del cliente
-        if(tipo == 0) {
-            clienteNuevo->tipo = 0;
-        } else {
-            clienteNuevo->tipo = 1;
-        }
-
-        // vi. Establecer solicitud
-        clienteNuevo->solicitud = 0;
-
-        // vii. Establecer prioridad
+  
+    //Comprobamos si hay espacio en la lista de clientes
+    if(contadorApp+contadorRed<20){
+        pthread_mutex_lock(&mutexNuevoCliente);
+        
+        //Calculamos prioridad del cliemte
         int prioridadCliente = calculaAleatorios(1, 10);
-        clienteNuevo->prioridad = prioridadCliente;
+        listaClientes[contadorApp+contadorRed].prioridad=prioridadCliente;
+        
+        //Dependiendo de la señal calculamos el id y el tipo, tambien incrementamos el contador
+    	switch(signal){
+			case SIGUSR1:
+            listaClientes[contadorApp+contadorRed].id=contadorApp+1;
+			listaClientes[contadorApp+contadorRed].tipo=0;
+            //Creamos el hilo y pasamos como parametro la posicion del cliente en listaClientes
+			pthread_create(&listaClientes[contadorApp+contadorRed].hiloUsuario, NULL, accionesCliente, (void *)(intptr_t)contadorApp+contadorRed);
+			contadorApp++;
+            break;
 
-        // viii. Crear hilo cliente
-        pthread_t threadNuevoCliente;
-        pthread_create (&threadNuevoCliente, NULL, accionesCliente, (void *)clienteNuevo);
+			case SIGUSR2:
+            listaClientes[contadorApp+contadorRed].id=contadorRed+1;
+			listaClientes[contadorApp+contadorRed].tipo=1;
+            //Creamos el hilo y pasamos como parametro la posicion del cliente en listaClientes
+			pthread_create(&listaClientes[contadorApp+contadorRed].hiloUsuario, NULL, accionesCliente, (void *)(intptr_t)contadorApp+contadorRed);  
+			contadorRed++;
+            break;
+		}
+
+        pthread_mutex_unlock(&mutexNuevoCliente);
     }
-
-    pthread_mutex_unlock(&mutexColaClientes);
+   
 }
 
 void *accionesCliente(void *ptr) {
