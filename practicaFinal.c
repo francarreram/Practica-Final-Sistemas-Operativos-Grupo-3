@@ -199,11 +199,12 @@ void nuevoCienteRed(int tipo) { //No se si esto lo he entendido bien, creo que s
     }
     // 1. Comprobar si hay espacio en la lista de clientes.
     pthread_mutex_lock(&mutexColaClientes);
+
     if (numSolicitudes < contadorRed){ //Creo que seria asi teniendo en cuenta que solo se crean clientes de tipo red
         //Caso a.
         // i. Añadir cliente a la lista
         struct Cliente *clienteNuevo;
-        clienteNuevo=malloc(sizeof *clienteNuevo);
+        clienteNuevo = malloc(sizeof *clienteNuevo);
 
         clienteNuevo->sig = NULL;
         clienteNuevo->ant = NULL;
@@ -228,7 +229,7 @@ void nuevoCienteRed(int tipo) { //No se si esto lo he entendido bien, creo que s
         clienteNuevo->id=totalClientes; //No entiendo esto
 
         // iv. Establecer el flag de atendido
-        clienteNuevo->atendido=0;
+        clienteNuevo->atendido = 0;
 
         // v. Establecer el tipo del cliente
         if(tipo == 0) {
@@ -238,7 +239,7 @@ void nuevoCienteRed(int tipo) { //No se si esto lo he entendido bien, creo que s
         }
 
         // vi. Establecer solicitud
-        clienteNuevo->solicitud=0;
+        clienteNuevo->solicitud = 0;
 
         // vii. Establecer prioridad
         int prioridadCliente = calculaAleatorios(1, 10);
@@ -283,7 +284,7 @@ void *accionesCliente(void *ptr) {
     writeLogMessage(type, mensaje);
     pthread_mutex_unlock(&mutexFichero);
 
-    pthread_mutex_unlock(&mutexColaPacientes);
+    pthread_mutex_unlock(&mutexColaClientes);
 
     //3. Comprobar si esta atendido
     do {
@@ -310,7 +311,7 @@ void *accionesCliente(void *ptr) {
                     writeLogMessage(type, mensaje);
                     pthread_mutex_unlock(&mutexFichero);
 
-                    paciente->atendido = -1;
+                    paciente->atendido = -1; //Liberamos el espacio en la cola y finalizamos el hilo.
                     eliminarCliente(&cliente);
                     pthread_exit(NULL);
                 }
@@ -318,7 +319,7 @@ void *accionesCliente(void *ptr) {
                 sleep(2);
             }
         }
-        pthread_mutex_unlock(&mutexColaPacientes);
+        pthread_mutex_unlock(&mutexColaClientes);
     }while (atendido == 0);
 
     // 4. Esperar a que termine de ser atendido, comprueba cada 2
@@ -341,8 +342,23 @@ void *accionesCliente(void *ptr) {
                 // ii.
                 cliente->solicitud = 1;
 
-                // iii. y iv. no se como hacerlo
+                // iii. y iv.
+                if(numSolicitud == 4) {
+                    pthread_mutex_lock(&mutexSolicitudesTecnico);
 
+                    pthread_cond_signal(&condicionTecnicoDomiciliario);
+                    
+                    sprintf(mensaje, "Pasamos el caso al tecnico.");
+                    pthread_mutex_lock(&mutexFichero);
+                    writeLogMessage(type, mensaje);
+                    pthread_mutex_unlock(&mutexFichero);
+
+                    pthread_cond_wait(&condicionTecnicoDomiciliario, &mutexSolicitudesTecnico);
+                    pthread_cond_signal(&condicionTecnicoDomiciliario);
+
+                    pthread_mutex_unlock(&mutexSolicitudesTecnicos);
+
+                }
 
                 // v.
                 sprintf(mensaje, "El cliente ha terminado de ser atendido.");
