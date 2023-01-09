@@ -206,8 +206,8 @@ int main(int argc, char const *argv[]){
  *  0: Cliente app
  *  1: Cliente red
  */
-void nuevoCienteRed(int signal) { //No se si esto lo he entendido bien, creo que sobrea el argumento ya que solo se crean los clientes de red.
-  
+void nuevoClienteRed(int signal){
+
     //Comprobamos si hay espacio en la lista de clientes
     if(contadorApp+contadorRed<20){
         pthread_mutex_lock(&mutexColaClientes);
@@ -217,23 +217,23 @@ void nuevoCienteRed(int signal) { //No se si esto lo he entendido bien, creo que
         listaClientes[contadorApp+contadorRed].prioridad=prioridadCliente;
         
         //Dependiendo de la señal calculamos el id y el tipo, tambien incrementamos el contador
-        switch(signal) {
-            case SIGUSR1:
-                listaClientes[contadorApp+contadorRed].id=contadorApp+1;
-                listaClientes[contadorApp+contadorRed].tipo=0;
-                //Creamos el hilo y pasamos como parametro la posicion del cliente en listaClientes
-                pthread_create(&listaClientes[contadorApp+contadorRed].hiloUsuario, NULL, accionesCliente, (void *)(intptr_t)contadorApp+contadorRed);                  
-                contadorApp++;
-                break;
+    	switch(signal){
+			case SIGUSR1:
+            listaClientes[contadorApp+contadorRed].id=contadorApp+1;
+			listaClientes[contadorApp+contadorRed].tipo=0;
+            //Creamos el hilo y pasamos como parametro la posicion del cliente en listaClientes
+			pthread_create(&listaClientes[contadorApp+contadorRed].hiloUsuario, NULL, accionesCliente, (void *)(intptr_t)contadorApp+contadorRed);
+			contadorApp++;
+            break;
 
-            case SIGUSR2:
-                listaClientes[contadorApp+contadorRed].id=contadorRed+1;
-                listaClientes[contadorApp+contadorRed].tipo=1;
-                //Creamos el hilo y pasamos como parametro la posicion del cliente en listaClientes
-                pthread_create(&listaClientes[contadorApp+contadorRed].hiloUsuario, NULL, accionesCliente, (void *)(intptr_t)contadorApp+contadorRed);  
-                contadorRed++;
-                break;
-        }
+			case SIGUSR2:
+            listaClientes[contadorApp+contadorRed].id=contadorRed+1;
+			listaClientes[contadorApp+contadorRed].tipo=1;
+            //Creamos el hilo y pasamos como parametro la posicion del cliente en listaClientes
+			pthread_create(&listaClientes[contadorApp+contadorRed].hiloUsuario, NULL, accionesCliente, (void *)(intptr_t)contadorApp+contadorRed);  
+			contadorRed++;
+            break;
+		}
 
         pthread_mutex_unlock(&mutexColaClientes);
     }
