@@ -72,7 +72,7 @@ void eliminarCliente(struct Cliente **clienteAEliminar);
 void *accionesTecnico(void *ptr);
 void *accionesEncargado(void *ptr);
 void *accionesTecnicoDomiciliario(void *ptr);
-void terminar(int señal);
+void terminar(int signal);
 void writeLogMessage(char *id, char *msg);
 int calculaAleatorios(int min, int max);
 
@@ -182,6 +182,13 @@ int main(int argc, char const *argv[]){
     pthread_create(&listaTecnicos[4].hiloTecnico, NULL, accionesEncargado, NULL);
     pthread_create(&listaTecnicos[5].hiloTecnico, NULL, accionesTecnicoDomiciliario, NULL);
 
+    //Crear menú inicial
+    printf("GESTIÓN DE AVERIAS LUZECITA\n");
+    writeLogMessage("INICIO", "Gestión de Averías LuZECita");
+    printf("Si tiene problemas en la app introduzca el comando 'kill -SIGUSR1 %d'\n", getpid());
+    printf("Si tiene problemas en la red introduzca el comando 'kill -SIGUSR2 %d'\n", getpid());
+    printf("Si tiene problemas en la app introduzca el comando 'kill -SIGINT %d'\n", getpid());
+    
     //Esperar señales de forma infinita
     while(TRUE){
 		pause();
@@ -446,7 +453,7 @@ void *accionesTecnico(void *ptr){
                     num = calculaAleatorios(0,1);
                     if(num==1){
                         //Envio señal del cliente
-                        pthread_cond_signal(condicionTecnicoDomiciliario);
+                        pthread_cond_signal(&condicionTecnicoDomiciliario);
                         //Espero a recibir la señal del tecnico domiciliario
                         pthread_cond_wait(&condicionClienteDomiciliario, &mutexSolicitudesDom);
                     }
@@ -462,7 +469,7 @@ void *accionesTecnico(void *ptr){
                     num = calculaAleatorios(0,1);
                     if(num==1){
                         //Envio señal del cliente
-                        pthread_cond_signal(condicionTecnicoDomiciliario);
+                        pthread_cond_signal(&condicionTecnicoDomiciliario);
                         //Espero a recibir la señal del tecnico domiciliario
                         pthread_cond_wait(&condicionClienteDomiciliario, &mutexSolicitudesDom);
                     }
@@ -536,7 +543,7 @@ void *accionesTecnico(void *ptr){
                     num = calculaAleatorios(0,1);
                     if(num==1){
                         //Envio señal del cliente
-                        pthread_cond_signal(condicionTecnicoDomiciliario);
+                        pthread_cond_signal(&condicionTecnicoDomiciliario);
                         //Espero a recibir la señal del tecnico domiciliario
                         pthread_cond_wait(&condicionClienteDomiciliario, &mutexSolicitudesDom);
                     }
@@ -552,7 +559,7 @@ void *accionesTecnico(void *ptr){
                     num = calculaAleatorios(0,1);
                     if(num==1){
                         //Envio señal del cliente
-                        pthread_cond_signal(condicionTecnicoDomiciliario);
+                        pthread_cond_signal(&condicionTecnicoDomiciliario);
                         //Espero a recibir la señal del tecnico domiciliario
                         pthread_cond_wait(&condicionClienteDomiciliario, &mutexSolicitudesDom);
                     }
@@ -650,7 +657,7 @@ void *accionesEncargado(void *ptr){
                 num = calculaAleatorios(0,1);
                 if(num==1){
                     //Envio señal del cliente
-                    pthread_cond_signal(condicionTecnicoDomiciliario);
+                    pthread_cond_signal(&condicionTecnicoDomiciliario);
                     //Espero a recibir la señal del tecnico domiciliario
                     pthread_cond_wait(&condicionClienteDomiciliario, &mutexSolicitudesDom);
                 }
@@ -666,7 +673,7 @@ void *accionesEncargado(void *ptr){
                 num = calculaAleatorios(0,1);
                 if(num==1){
                     //Envio señal del cliente
-                    pthread_cond_signal(condicionTecnicoDomiciliario);
+                    pthread_cond_signal(&condicionTecnicoDomiciliario);
                     //Espero a recibir la señal del tecnico domiciliario
                     pthread_cond_wait(&condicionClienteDomiciliario, &mutexSolicitudesDom);
                 }
@@ -693,10 +700,10 @@ void *accionesEncargado(void *ptr){
 
 void eliminarCliente(struct Cliente **clienteAEliminar){
     pthread_mutex_lock(&mutexColaClientes);
-    if(*cliienteAEliminar == NULL){
+    if(*clienteAEliminar == NULL){
         printf("NULL\n");
     }
-    printf("Eliminar Cliente %d\n", (*clieienteAEliminar)->id);
+    printf("Eliminar Cliente %d\n", (*clienteAEliminar)->id);
 
     if((*clienteAEliminar)->ant != NULL && (*clienteAEliminar)->sig != NULL){
         (*clienteAEliminar)->ant->sig=(*clienteAEliminar)->sig;
@@ -723,7 +730,7 @@ int calculaAleatorios(int min, int max){
 	return rand() % (max-min+1) + min;
 }
 
-void accionesTecnicoDomiciliario (void *ptr){
+void *accionesTecnicoDomiciliario (void *ptr){
 
 while(TRUE){
 
@@ -731,7 +738,7 @@ while(TRUE){
 
 pthread_mutex_lock(&mutexSolicitudesDom);
 while(numSolicitudesDom<4){
-pthreah_cond_wait(&condicionTecnicoDomicialrio, & mutexSolicitudesDom);
+pthread_cond_wait(&condicionTecnicoDomiciliario, & mutexSolicitudesDom);
 }
 // guardamos en el log que va a comenzar la atencion
 
@@ -739,7 +746,7 @@ char msg[100];
 char aviso[100];
 char atendido[100];
 char sig[100];
-pritnf(" Va comenzar la atención\n");
+printf(" Va comenzar la atención\n");
 sprintf(msg, " Va a comenzar la atención\n");
 sprintf(aviso, " Va a comenzar la atención\n");
 sprintf(sig, " Voy a por el siguiente\n");
@@ -748,7 +755,7 @@ for(int i=0; i<5; i++){
 
 // guardamos en el log que el cliente ha sido atendido
 
-pritnf(" solictud nº %d atendida \n",i);
+printf(" solictud nº %d atendida \n",i);
 sprintf(atendido, " cliente nº %d atendido\n",i);
 writeLogMessage( atendido, sig);
 
@@ -762,16 +769,16 @@ sleep(1);
 
 // ponemos las solicitudes a 0
 
-solicitudesDom=0;
+numSolicitudesDom=0;
 
 // guardamos en el log que se ha finalizado la atencion
 
 char final[100];
-pritnf(" se ha finalizado la atencion domicialria\n");
+printf(" se ha finalizado la atencion domicialria\n");
 sprintf(final, " se ha finalizado la atencion domiciliaria\n");
 writeLogMessage( aviso, final);
 
-pthread_cond_signal(&condicionTecnicodomiciliario);
+pthread_cond_signal(&condicionTecnicoDomiciliario);
 
 pthread_mutex_unlock(&mutexSolicitudesDom);
 
@@ -779,11 +786,11 @@ pthread_mutex_unlock(&mutexSolicitudesDom);
 }
 
 
-void terminar(int señal){
+void terminar(int signal){
     char mensaje[100];
     printf("Se va a finalizar el programa.\n");
     sprintf(mensaje, "Se va a finalizar el programa.\n");
-    escribeEnLog("AVISO", mensaje);
+    writeLogMessage("AVISO", mensaje);
 
     //Bloquear el mutex de las solicitudes domiciliarias
     pthread_mutex_lock(&mutexSolicitudesDom);
@@ -808,7 +815,7 @@ void terminar(int señal){
 
             printf("Fin del programa.\n");
             sprintf(mensaje, "Fin del programa.\n");
-            escribeEnLog("AVISO", mensaje);
+            writeLogMessage("AVISO", mensaje);
             
             exit(0);
         } else{
