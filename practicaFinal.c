@@ -87,20 +87,23 @@ int main(int argc, char const *argv[]){
     //Definir estructuras de clientes y enmascarar señales
     struct sigaction clienteApp = {0};
     clienteApp.sa_handler = nuevoClienteRed;
+    
     struct sigaction clienteRed = {0};
     clienteRed.sa_handler = nuevoClienteRed;
+    
     if(-1 == sigaction(SIGUSR1, &clienteApp, NULL)  || -1 == sigaction(SIGUSR2, &clienteRed, NULL) ){
-		perror("Error: LLamada a sigaction nuevo cliente.");
-		exit(-1);
-	}
+        perror("Error: LLamada a sigaction nuevo cliente.");
+        exit(-1);
+    }
 
     //Definir estructura de fin y enmascar señales
     struct sigaction fin = {0};
-	fin.sa_handler = terminar;
-	if( -1 == sigaction(SIGINT, &fin, NULL) ){
-		perror("Error: LLamada a sigaction terminar.");
-		exit(-1);
-	}
+    fin.sa_handler = terminar;
+
+    if( -1 == sigaction(SIGINT, &fin, NULL) ){
+        perror("Error: LLamada a sigaction terminar.");
+        exit(-1);
+    }
 
     //Inicializar semáforos
     if (pthread_mutex_init(&mutexFichero, NULL) != 0) exit(-1);
@@ -166,7 +169,7 @@ int main(int argc, char const *argv[]){
 
     //Inicializar fichero de log
     logFile = fopen("registroTiempos.log" , "wt");
-	fclose(logFile);
+    fclose(logFile);
 
     //Inicializar variable domicialiaria
     numSolicitudesDom = 0;
@@ -193,8 +196,8 @@ int main(int argc, char const *argv[]){
     
     //Esperar señales de forma infinita
     while(TRUE){
-		pause();
-	}
+        pause();
+    }
 
     return 0;
 }
@@ -217,23 +220,23 @@ void nuevoClienteRed(int signal){
         listaClientes[contadorApp+contadorRed].prioridad=prioridadCliente;
         
         //Dependiendo de la señal calculamos el id y el tipo, tambien incrementamos el contador
-    	switch(signal){
-			case SIGUSR1:
+        switch(signal){
+            case SIGUSR1:
             listaClientes[contadorApp+contadorRed].id=contadorApp+1;
-			listaClientes[contadorApp+contadorRed].tipo=0;
+            listaClientes[contadorApp+contadorRed].tipo=0;
             //Creamos el hilo y pasamos como parametro la posicion del cliente en listaClientes
-			pthread_create(&listaClientes[contadorApp+contadorRed].hiloUsuario, NULL, accionesCliente, (void *)(intptr_t)contadorApp+contadorRed);
-			contadorApp++;
+            pthread_create(&listaClientes[contadorApp+contadorRed].hiloUsuario, NULL, accionesCliente, (void *)(intptr_t)contadorApp+contadorRed);
+            contadorApp++;
             break;
 
-			case SIGUSR2:
+            case SIGUSR2:
             listaClientes[contadorApp+contadorRed].id=contadorRed+1;
-			listaClientes[contadorApp+contadorRed].tipo=1;
+            listaClientes[contadorApp+contadorRed].tipo=1;
             //Creamos el hilo y pasamos como parametro la posicion del cliente en listaClientes
-			pthread_create(&listaClientes[contadorApp+contadorRed].hiloUsuario, NULL, accionesCliente, (void *)(intptr_t)contadorApp+contadorRed);  
-			contadorRed++;
+            pthread_create(&listaClientes[contadorApp+contadorRed].hiloUsuario, NULL, accionesCliente, (void *)(intptr_t)contadorApp+contadorRed);  
+            contadorRed++;
             break;
-		}
+        }
 
         pthread_mutex_unlock(&mutexColaClientes);
     }
@@ -247,21 +250,20 @@ void *accionesCliente(void *ptr) {
     int comportamiento;
     char type[100];
     char mensaje[100];
+    int tipo;
 
     pthread_mutex_lock(&mutexColaClientes);
-
-    //Se coge la referencia a cliente que se pasa por parametro
-    cliente = (struct Cliente *) ptr;
-
-    switch(cliente->tipo){
+    
+    tipo = listaClientes[(intptr_t)ptr].tipo;
+    switch(tipo){
         case 0:
-            sprintf(type, "%s%d %s","Cliente ", cliente->id, "App");
+            sprintf(type, "%s%d %s","Cliente ", listaClientes[(intptr_t)ptr].id, "; Tipo App");
             break;
         case 1:
-            sprintf(type, "%s%d %s","Cliente ", cliente->id, "Red");
+            sprintf(type, "%s%d %s","Cliente ", listaClientes[(intptr_t)ptr].id, "; Tipo Red");
             break;
         default:
-            sprintf(type, "%s%d %s","Cliente ", cliente->id, "Desconocido");
+            sprintf(type, "%s%d %s","Cliente ", listaClientes[(intptr_t)ptr].id, "; Tipo Desconocido");
             break;
     }
 
@@ -273,18 +275,30 @@ void *accionesCliente(void *ptr) {
 
     pthread_mutex_unlock(&mutexColaClientes);
 
+    
     //3. Comprobar si esta atendido
     do {
         pthread_mutex_lock(&mutexColaClientes);
-        atendido = cliente->atendido;
+
+        atendido = listaClientes[(intptr_t)ptr].atendido;
+
         comportamiento = calculaAleatorios(1, 100);
 
-        if (atendido == 1) {
-            printf("El cliente: %d esta siendo atentido\n", cliente->id);
-        }else if(atendido == 0){
-            printf("El cliente: %d no esta siendo atentido\n", cliente->id);
-            if (comportamiento <= 35) {
-                if(cliente->atendido == 0) {
+        if (atendido == 1) { //Avisamos de que es atendido
+            sprintf(mensaje, "El cliente %d esta siendo atentido.", listaClientes[(intptr_t)ptr].id);
+
+            pthread_mutex_lock(&mutexFichero);
+            writeLogMessage(type, mensaje);
+            pthread_mutex_unlock(&mutexFichero);
+        }else if(atendido == 0){ //3a.
+            sprintf(mensaje, "El cliente %d no esta siendo atentido.", listaClientes[(intptr_t)ptr].id);
+
+            pthread_mutex_lock(&mutexFichero);
+            writeLogMessage(type, mensaje);
+            pthread_mutex_unlock(&mutexFichero);
+
+            if (comportamiento <= 35) { //3b.
+                if(listaClientes[(intptr_t)ptr].atendido == 0) {
                     if(comportamiento <= 10){
                         sprintf(mensaje, "Encuentra dificil la aplicación y se va.");
                     } else if(comportamiento > 10 && comportamiento <= 30) {
@@ -298,27 +312,33 @@ void *accionesCliente(void *ptr) {
                     writeLogMessage(type, mensaje);
                     pthread_mutex_unlock(&mutexFichero);
 
-                    cliente->atendido = -1; //Liberamos el espacio en la cola y finalizamos el hilo.
+                    listaClientes[(intptr_t)ptr].atendido = -1; //Liberamos el espacio en la cola y finalizamos el hilo.
                     eliminarCliente(&cliente);
                     pthread_exit(NULL);
                 }
-            }else{
+            }else{ //3c.
+                sprintf(mensaje, "Espera pacientemente a su turno.");
+                
+                pthread_mutex_lock(&mutexFichero);
+                writeLogMessage(type, mensaje);
+                pthread_mutex_unlock(&mutexFichero);
+
                 sleep(2);
             }
         }
         pthread_mutex_unlock(&mutexColaClientes);
     }while (atendido == 0);
 
-    // 4. Esperar a que termine de ser atendido, comprueba cada 2
+    // 4. 
 
     pthread_mutex_lock(&mutexColaClientes);
 
     comportamiento = calculaAleatorios(1, 100);
 
-    while(atendido == 1) {
-        if(cliente->tipo == 1 && comportamiento <= 30) {
+    while(atendido != -1) {
+        if(listaClientes[(intptr_t)ptr].tipo == 1 && comportamiento <= 30) {
             // 5.
-            do {
+            if(numSolicitudesDom < 4) {
                 numSolicitudesDom++;
 
                 // i.
@@ -328,47 +348,42 @@ void *accionesCliente(void *ptr) {
                 pthread_mutex_unlock(&mutexFichero);
 
                 // ii.
-                cliente->solicitud = 1;
+                listaClientes[(intptr_t)ptr].solicitud = 1;
 
                 // iii. y iv.
-                if(numSolicitudesDom == 4) {
-                    pthread_mutex_lock(&mutexSolicitudesTecnicos);
+                pthread_mutex_lock(&mutexSolicitudesTecnicos);
 
-                    pthread_cond_signal(&condicionTecnicoDomiciliario);
-                    
-                    sprintf(mensaje, "Pasamos el caso al tecnico.");
-                    pthread_mutex_lock(&mutexFichero);
-                    writeLogMessage(type, mensaje);
-                    pthread_mutex_unlock(&mutexFichero);
+                pthread_cond_signal(&condicionTecnicoDomiciliario);
+                
+                sprintf(mensaje, "Pasamos el caso al tecnico.");
+                pthread_mutex_lock(&mutexFichero);
+                writeLogMessage(type, mensaje);
+                pthread_mutex_unlock(&mutexFichero);
 
-                    pthread_cond_wait(&condicionTecnicoDomiciliario, &mutexSolicitudesTecnicos);
-                    pthread_cond_signal(&condicionTecnicoDomiciliario);
+                pthread_cond_wait(&condicionTecnicoDomiciliario, &mutexSolicitudesTecnicos);
+                pthread_cond_signal(&condicionTecnicoDomiciliario);
 
-                    pthread_mutex_unlock(&mutexSolicitudesTecnicos);
-
-                }
+                pthread_mutex_unlock(&mutexSolicitudesTecnicos);
 
                 // v.
                 sprintf(mensaje, "El cliente ha terminado de ser atendido.");
                 pthread_mutex_lock(&mutexFichero);
                 writeLogMessage(type, mensaje);
                 pthread_mutex_unlock(&mutexFichero);
-
-                sleep(2);
-
-            }while(numSolicitudesDom < 4);
-        } else {
-            cliente->atendido = -1;
+            } else {
+                sleep(3);
+            }
+        } else { //6.
+            listaClientes[(intptr_t)ptr].atendido = -1;
             eliminarCliente(&cliente);
 
-            sprintf(mensaje, "El cliente ha terminado.");
+            sprintf(mensaje, "El cliente ha terminado."); //7.
             pthread_mutex_lock(&mutexFichero);
             writeLogMessage(type, mensaje);
             pthread_mutex_unlock(&mutexFichero);
             
-            pthread_exit(NULL);
+            pthread_exit(NULL); //8.
         }
-        sleep(2);
     }
     
     pthread_mutex_unlock(&mutexColaClientes);
@@ -701,7 +716,7 @@ void eliminarCliente(struct Cliente **clienteAEliminar){
 }
 
 int calculaAleatorios(int min, int max){
-	return rand() % (max-min+1) + min;
+    return rand() % (max-min+1) + min;
 }
 
 void *accionesTecnicoDomiciliario (void *ptr){
@@ -795,7 +810,7 @@ void terminar(int signal){
         } else{
             //Desbloquear el mutex hasta que se acaben los clientes
             pthread_mutex_unlock(&mutexColaClientes);
-			sleep(1);
+            sleep(1);
         }
     }
 }
