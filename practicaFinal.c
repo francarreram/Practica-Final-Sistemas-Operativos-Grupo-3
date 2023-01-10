@@ -21,26 +21,43 @@ pthread_cond_t condicionClienteDomiciliario;
 
 int contadorApp;
 int contadorRed;
-
 int numSolicitudesDom;
 
 struct Cliente{
+    /*
+     * Numero que ocupa en la cola de clientes de su tipo
+     */
     int id;
-
     /*
      * -1 - Si ya se marcha
      *  0 - Si no ha sido atendido
      *  1 - Si esta siendo atendido
      */
     int atendido;
+    /*
+     *  0 - App
+     *  1 - Red
+     */
     int tipo;
+    /*
+     * 0 - todo en regla(mandara o no solicitud dom)
+     * 1 - mal identificado(mandara o no solicitud dom)
+     * 2 - se ha confundido de compañia(abandona el sistema)
+     */
+     int tipoAtencion;
+     /*
+     * Prioridad del 1 al 10 para ser atendido
+     */
     int prioridad;
+    /* 
+     * 0 - no ha solicitado atencion domiciliaria
+     * 1 - ha solicitado atencion domiciliaria
+     */
     int solicitud;
-
-    struct Cliente *ant;
-    struct Cliente *sig;
-
-    pthread_t hiloUsuario;
+    /*
+     * Hilo que ejecuta cada cliente
+     */
+    pthread_t hiloCliente;
 };
 
 struct Cliente *primerCliente;
@@ -56,15 +73,21 @@ struct Tecnico{
      *  3 - Domiciliario
      */
     int tipo;
+    /*
+     * Num de solicitudes atendidas
+     */
     int solicitudes;
-
     /*
      *  0 - No
      *  1 - Si
      */
     int atendiendo;
+     /*
+     * Hilo que ejecuta cada tecnico
+     */
     pthread_t hiloTecnico;
 };
+
 
 struct Tecnico *listaTecnicos;
 
@@ -428,47 +451,44 @@ void *accionesTecnico(void *ptr){
 
                 //Calculamos el tipo de atencion del cliente
                 int num = calculaAleatorios(0,100);
-                char mensaje[100];
-                int numSolicitud = contadorApp+contadorRed;
-                sprintf(mensaje, "Solicitud numero %d de tipo %d", numSolicitud, listaClientes[posCliente].tipo);
-                writeLogMessage(mensaje, "Comienza atencion");
+                char mensajeTipoAtencion[100];
+                char mensajeTecnico[100];
+                int numSolicitud = posCliente+1;
+                char idTecnico[10];
+                sprintf(idTecnico,"Tecapp_%ld",(intptr_t)ptr);
+                sprintf(mensajeTecnico,"Voy a atender la solicitud %d", numSolicitud);
+                writeLogMessage(idTecnico,mensajeTecnico);
+                printf("El tecnico %ld va a atender la solicitud %d \n", (intptr_t)ptr, numSolicitud);
+
                 //- 80% tiene todo en orden
                 if(num<80){
                     sleep(calculaAleatorios(1,4));
-                    writeLogMessage(mensaje, "Finaliza la atencion teniendo todo en orden");
-
-                    //Calcula si manda o no la solicitud domiciliaria
-                    pthread_mutex_lock(&mutexSolicitudesDom);
-                    num = calculaAleatorios(0,1);
-                    if(num==1){
-                        //Envio señal del cliente
-                        pthread_cond_signal(&condicionTecnicoDomiciliario);
-                        //Espero a recibir la señal del tecnico domiciliario
-                        pthread_cond_wait(&condicionClienteDomiciliario, &mutexSolicitudesDom);
-                    }
-                    pthread_mutex_unlock(&mutexSolicitudesDom);
+                    sprintf(mensajeTipoAtencion, "La solicitud  %d tiene todo en orden", numSolicitud);
+                    printf("La solicitud numero %d tiene todo en orden\n", numSolicitud);
+                    listaClientes[posCliente].tipoAtencion=0;
 
                 //- 10% mal identificados
                 }else if(num<90){
                     sleep(calculaAleatorios(2,6));
-                    writeLogMessage(mensaje, "Finaliza la atencion y tiene errores en sus datos de identificacion");
-
-                    //Calcula si manda o no la solicitud domiciliaria
-                    pthread_mutex_lock(&mutexSolicitudesDom);
-                    num = calculaAleatorios(0,1);
-                    if(num==1){
-                        //Envio señal del cliente
-                        pthread_cond_signal(&condicionTecnicoDomiciliario);
-                        //Espero a recibir la señal del tecnico domiciliario
-                        pthread_cond_wait(&condicionClienteDomiciliario, &mutexSolicitudesDom);
-                    }
-                    pthread_mutex_unlock(&mutexSolicitudesDom);
+                    sprintf(mensajeTipoAtencion, "La solicitud %d se ha identificado mal", numSolicitud);
+                    printf("La solicitud numero %d se ha identificado mal", numSolicitud);
+                    listaClientes[posCliente].tipoAtencion=1;
 
                 //- 10% se ha confunfido de compañia
                 }else{
                     sleep(calculaAleatorios(1,2));
-                    writeLogMessage(mensaje, "Finaliza la atencion por confundirse de compañia");
+                    sprintf(mensajeTipoAtencion, "La solicitud %d se ha confundido de compañia", numSolicitud);
+                    listaClientes[posCliente].tipoAtencion=2;
                 }
+
+                sprintf(mensajeTecnico,"Atencion a solicitud %d finalizada", numSolicitud);
+                writeLogMessage(idTecnico,mensajeTecnico);
+                printf("El tecnico %ld ha atendido la solicitud %d \n", (intptr_t)ptr, numSolicitud);
+
+                writeLogMessage(idTecnico,mensajeTipoAtencion);
+
+                //Cambiamos flag de atendido
+                listaClientes[posCliente].atendido=-1;
 
                 //Incrementamos el numero de solicutudes atendidas
                 listaTecnicos[posTecnico].solicitudes++;
@@ -513,52 +533,49 @@ void *accionesTecnico(void *ptr){
                 //Cambiamos flag de atendido
                 listaClientes[posCliente].atendido=1;
 
-                //Cambiamos flag atendiendo
+                //Cambiamos flag de atendiendo
                 listaTecnicos[posTecnico].atendiendo=1;
 
                 //Calculamos el tipo de atencion del cliente
                 int num = calculaAleatorios(0,100);
-                char mensaje[100];
-                int numSolicitud = contadorApp+contadorRed+1;
-                sprintf(mensaje, "Solicitud numero %d de tipo %d", numSolicitud, listaClientes[posCliente].tipo);
-                writeLogMessage(mensaje, "Comienza atencion");
+                char mensajeTipoAtencion[100];
+                char mensajeTecnico[100];
+                int numSolicitud = posCliente+1;
+                char idTecnico[10];
+                sprintf(idTecnico,"Tecapp_%ld",(intptr_t)ptr);
+                sprintf(mensajeTecnico,"Voy a atender la solicitud %d", numSolicitud);
+                writeLogMessage(idTecnico,mensajeTecnico);
+                printf("El tecnico %ld va a atender la solicitud %d \n", (intptr_t)ptr, numSolicitud);
+
                 //- 80% tiene todo en orden
                 if(num<80){
                     sleep(calculaAleatorios(1,4));
-                    writeLogMessage(mensaje, "Finaliza la atencion teniendo todo en orden");
-
-                    //Calcula si manda o no la solicitud domiciliaria
-                    pthread_mutex_lock(&mutexSolicitudesDom);
-                    num = calculaAleatorios(0,1);
-                    if(num==1){
-                        //Envio señal del cliente
-                        pthread_cond_signal(&condicionTecnicoDomiciliario);
-                        //Espero a recibir la señal del tecnico domiciliario
-                        pthread_cond_wait(&condicionClienteDomiciliario, &mutexSolicitudesDom);
-                    }
-                    pthread_mutex_unlock(&mutexSolicitudesDom);
+                    sprintf(mensajeTipoAtencion, "La solicitud %d tiene todo en orden", numSolicitud);
+                    printf("La solicitud numero %d tiene todo en orden\n", numSolicitud);
+                    listaClientes[posCliente].tipoAtencion=0;
 
                 //- 10% mal identificados
                 }else if(num<90){
                     sleep(calculaAleatorios(2,6));
-                    writeLogMessage(mensaje, "Finaliza la atencion y tiene errores en sus datos de identificacion");
-
-                    //Calcula si manda o no la solicitud domiciliaria
-                    pthread_mutex_lock(&mutexSolicitudesDom);
-                    num = calculaAleatorios(0,1);
-                    if(num==1){
-                        //Envio señal del cliente
-                        pthread_cond_signal(&condicionTecnicoDomiciliario);
-                        //Espero a recibir la señal del tecnico domiciliario
-                        pthread_cond_wait(&condicionClienteDomiciliario, &mutexSolicitudesDom);
-                    }
-                    pthread_mutex_unlock(&mutexSolicitudesDom);
+                    sprintf(mensajeTipoAtencion, "La solicitud %d se ha identificado mal", numSolicitud);
+                    printf("La solicitud numero %d se ha identificado mal", numSolicitud);
+                    listaClientes[posCliente].tipoAtencion=1;
 
                 //- 10% se ha confunfido de compañia
                 }else{
                     sleep(calculaAleatorios(1,2));
-                    writeLogMessage(mensaje, "Finaliza la atencion por confundirse de compañia");
+                    sprintf(mensajeTipoAtencion, "La solicitud %d se ha confundido de compañia", numSolicitud);
+                    listaClientes[posCliente].tipoAtencion=2;
                 }
+
+                sprintf(mensajeTecnico,"Atencion a solicitud %d finalizada", numSolicitud);
+                writeLogMessage(idTecnico,mensajeTecnico);
+                printf("El tecnico %ld ha atendido la solicitud %d \n", (intptr_t)ptr, numSolicitud);
+
+                writeLogMessage(idTecnico,mensajeTipoAtencion);
+
+                //Cambiamos flag de atendido
+                listaClientes[posCliente].atendido=-1;
 
                 //Incrementamos el numero de solicutudes atendidas
                 listaTecnicos[posTecnico].solicitudes++;
@@ -632,50 +649,42 @@ void *accionesEncargado(void *ptr){
 
             //Calculamos el tipo de atencion del cliente
             int num = calculaAleatorios(0,100);
-            char mensaje[100];
-            int numSolicitud = contadorApp+contadorRed+1;
-            sprintf(mensaje, "Solicitud numero %d de tipo %d", numSolicitud, listaClientes[posCliente].tipo);
-            writeLogMessage(mensaje, "Comienza atencion");
+            char mensajeTipoAtencion[100];
+            char mensajeEncargado[100];
+            int numSolicitud = posCliente+1;
+            sprintf(mensajeEncargado,"Voy a atender la solicitud %d", numSolicitud);
+            writeLogMessage("Encargado",mensajeEncargado);
+            printf("El encargado va a atender la solicitud %d \n", numSolicitud);
+
             //- 80% tiene todo en orden
             if(num<80){
                 sleep(calculaAleatorios(1,4));
-                writeLogMessage(mensaje, "Finaliza la atencion teniendo todo en orden");
-
-                //Calcula si manda o no la solicitud domiciliaria
-                pthread_mutex_lock(&mutexSolicitudesDom);
-                num = calculaAleatorios(0,1);
-                if(num==1){
-                    //Envio señal del cliente
-                    pthread_cond_signal(&condicionTecnicoDomiciliario);
-                    //Espero a recibir la señal del tecnico domiciliario
-                    pthread_cond_wait(&condicionClienteDomiciliario, &mutexSolicitudesDom);
-                }
-                pthread_mutex_unlock(&mutexSolicitudesDom);
-                
+                sprintf(mensajeTipoAtencion, "La solicitud %d tiene todo en orden", numSolicitud);
+                printf("La solicitud numero %d tiene todo en orden\n", numSolicitud);
+                listaClientes[posCliente].tipoAtencion=0;
+                    
             //- 10% mal identificados
             }else if(num<90){
                 sleep(calculaAleatorios(2,6));
-                writeLogMessage(mensaje, "Finaliza la atencion y tiene errores en sus datos de identificacion");
-
-                //Calcula si manda o no la solicitud domiciliaria
-                pthread_mutex_lock(&mutexSolicitudesDom);
-                num = calculaAleatorios(0,1);
-                if(num==1){
-                    //Envio señal del cliente
-                    pthread_cond_signal(&condicionTecnicoDomiciliario);
-                    //Espero a recibir la señal del tecnico domiciliario
-                    pthread_cond_wait(&condicionClienteDomiciliario, &mutexSolicitudesDom);
-                }
-                pthread_mutex_unlock(&mutexSolicitudesDom);
+                sprintf(mensajeTipoAtencion, "La solicitud %d se ha identificado mal", numSolicitud);
+                printf("La solicitud numero %d se ha identificado mal", numSolicitud);
+                listaClientes[posCliente].tipoAtencion=1;
 
             //- 10% se ha confunfido de compañia
             }else{
                 sleep(calculaAleatorios(1,2));
-                writeLogMessage(mensaje, "Finaliza la atencion por confundirse de compañia");
+                sprintf(mensajeTipoAtencion, "La solicitud %d se ha confundido de compañia", numSolicitud);
+                listaClientes[posCliente].tipoAtencion=2;
             }
 
+            sprintf(mensajeEncargado,"Atencion a solicitud %d finalizada", numSolicitud);
+            writeLogMessage("Encargado",mensajeEncargado);
+            printf("El encargado ha atendido la solicitud %d \n", numSolicitud);
+
+            writeLogMessage("Encargado",mensajeTipoAtencion);
+
             //Cambiamos flag de atendido
-            listaClientes[posCliente].atendido=1;
+            listaClientes[posCliente].atendido=-1;
 
             //Cambiamos flag de atendiendo
             listaTecnicos[4].atendiendo=0;
