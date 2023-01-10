@@ -792,6 +792,8 @@ void terminar(int signal){
             sleep(1);
         }
     }
+   
+    exit(0);
 }
 
 void writeLogMessage(char *id, char *msg) {
