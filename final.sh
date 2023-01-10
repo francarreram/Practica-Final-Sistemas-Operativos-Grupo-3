@@ -7,7 +7,7 @@ function mostrar(){
 
 
 function compilar(){
-        gcc practicaFinal.c -o final
+        gcc practicaFinal.c -o final -lpthread
 }
 
 function ejecutar(){
@@ -53,4 +53,3 @@ done
 
 
 #final
-
