@@ -23,7 +23,7 @@ pthread_cond_t condicionClienteDomiciliario;
 
 int contadorApp;
 int contadorRed;
-int contadorSolicitudes;
+int contadorTotal;
 int contadorSolicitudesDom;
 
 struct Cliente{
@@ -245,7 +245,6 @@ void nuevoClienteRed(int signal){
             listaClientes[contadorApp+contadorRed].tipo=0;
             listaClientes[contadorApp+contadorRed].atendido=0;
             listaClientes[contadorApp+contadorRed].solicitud=0;
-            printf("Creo hilo app\n");
             //Creamos el hilo y pasamos como parametro la posicion del cliente en listaClientes
             pthread_create(&listaClientes[contadorApp+contadorRed].hiloCliente, NULL, accionesCliente, (void *)(intptr_t)contadorApp+contadorRed);
             contadorApp++;
@@ -256,7 +255,6 @@ void nuevoClienteRed(int signal){
             listaClientes[contadorApp+contadorRed].tipo=1;
             listaClientes[contadorApp+contadorRed].atendido=0;
             listaClientes[contadorApp+contadorRed].solicitud=0;
-            printf("Creo hilo red\n");
             //Creamos el hilo y pasamos como parametro la posicion del cliente en listaClientes
             pthread_create(&listaClientes[contadorApp+contadorRed].hiloCliente, NULL, accionesCliente, (void *)(intptr_t)contadorApp+contadorRed);  
             contadorRed++;
@@ -264,7 +262,7 @@ void nuevoClienteRed(int signal){
         }
 
         //Incrementamos contador
-        contadorSolicitudes++;
+        contadorTotal++;
 
         pthread_mutex_unlock(&mutexColaClientes);
     }
@@ -279,7 +277,8 @@ void *accionesCliente(void *ptr) {
     int posCliente = (intptr_t)ptr;
 
     pthread_mutex_lock(&mutexCliente);
-    
+
+    int contadorSolicitudes=contadorTotal;
     int tipo = listaClientes[(intptr_t)ptr].tipo;
     switch(tipo){
         case 0:
@@ -392,6 +391,8 @@ void *accionesTecnico(void *ptr){
         if( (posTecnico==0 || posTecnico==1) && listaTecnicos[posTecnico].atendiendo==0 ){
 
             pthread_mutex_lock(&mutexSolicitudesTecnicos);
+
+            int contadorSolicitudes=contadorTotal;
             
             //Obtememos posicion del ciente de tipo app con mayor prioridad o si hay empate, de que haya llegado antes
             int posCliente=-1;
@@ -478,7 +479,9 @@ void *accionesTecnico(void *ptr){
         //Si esta en la posicion 2 o 3 es un tecnico de app
         if( (posTecnico==2 || posTecnico==3) && listaTecnicos[posTecnico].atendiendo==0 ){
 
-            pthread_mutex_lock(&mutexSolicitudesTecnicos);;
+            pthread_mutex_lock(&mutexSolicitudesTecnicos);
+
+            int contadorSolicitudes=contadorTotal;
 
             //Obtememos posicion del ciente de tipo red con mayor prioridad o si hay empate, de que haya llegado antes
             int posCliente=-1;
@@ -571,6 +574,8 @@ void *accionesEncargado(void *ptr){
     while(TRUE){
         
         pthread_mutex_lock(&mutexSolicitudesEncargado);
+
+        int contadorSolicitudes=contadorTotal;
 
         //Obtememos posicion del ciente de tipo red con mayor prioridad o si hay empate, de que haya llegado antes
         int posClienteRed=-1;
