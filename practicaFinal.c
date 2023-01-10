@@ -735,7 +735,7 @@ void terminar(int signal){
 
     //Bloquear el mutex de las solicitudes domiciliarias
     pthread_mutex_lock(&mutexSolicitudesDom);
-
+    pthread_mutex_lock(&mutexColaClientes);
     //Cerrar solicitudes domiciliarias
     contadorSolicitudesDom = 0;
 
@@ -745,11 +745,13 @@ void terminar(int signal){
 
     //Desbloquear los mutex de las solicitudes domiciliarias
     pthread_mutex_unlock(&mutexSolicitudesDom);
+    pthread_mutex_unlock(&mutexColaClientes);
 
     while(TRUE) {
         //Bloquear mutex de clientes para saber si se han acabado
         pthread_mutex_lock(&mutexColaClientes);
         if (contadorApp + contadorRed == 0){
+            pthread_mutex_unlock(&mutexColaClientes);
             //Liberar punteros
             free(listaClientes);
             free(listaTecnicos);
