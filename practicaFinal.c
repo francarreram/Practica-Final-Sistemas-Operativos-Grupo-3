@@ -269,7 +269,6 @@ void nuevoClienteRed(int signal){
 
 
 void *accionesCliente(void *ptr) {
-    printf("1\n");
     int comportamiento;
     char idCliente[100];
     char mensaje[100];
