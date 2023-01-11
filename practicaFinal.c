@@ -222,6 +222,7 @@ int main(int argc, char const *argv[]){
  * signal: Grupo al que pertenece el cliente
  *  0: Cliente app
  *  1: Cliente red
+ *
  */
 void nuevoClienteRed(int signal){
 
@@ -267,7 +268,20 @@ void nuevoClienteRed(int signal){
 }
 
 
-
+/**
+ * Metodo que determina el comportamiento de un cliente
+ * 
+ * Si no esta siendo atendido tiene el siguiente comportamiento: (Se comprueba cada 2s)
+ *  10%: Encuentra la app dificil y se va
+ *  20%: Se cansan de esperar y se van tras 8s
+ *  5%: Pierde la conexion
+ *  El 65% restante se mantiene esperando
+ *  
+ * Una vez ha sido atendido:
+ *  El 30% espera atencion en domicilio
+ *  El resto abandona la app y termina
+ *
+ */
 void *accionesCliente(void *ptr) {
     int comportamiento;
     char idCliente[100];
@@ -384,7 +398,18 @@ void *accionesCliente(void *ptr) {
 
 }
 
-
+/**
+ * Metodo que determina el comportamiento de un tecnico
+ * 
+ * Cada vez que atiende a 5 clientes descansara 5s
+ * Solo se mueve cuando tiene 4 solicitudes de atencion domiciliaria
+ *  Tarda 1s en atender cada solicitud y no puede recibir mas hasta que no haya terminado las 4, despues avisara y podra recibir nuevas solicitudes
+ *  Determina el caso de cada cliente:
+ *   80%: Todo en regla, espera de 1 a 4s y despues procede con la att. dom si fuese el caso
+ *   10%: Mal identificados, espera de 2 a 6s y despues procede con la att. dom si fuese el caso
+ *   10%: Se ha confundido de compania, espera 1 a 2s y abandona el sistema
+ *
+ */
 void *accionesTecnico(void *ptr){
     //El tecnico esta constantemente atendiento a clientes
     while(TRUE){
@@ -577,7 +602,10 @@ void *accionesTecnico(void *ptr){
 }
 
 
-
+/**
+ * Metodo que determina el comportamiento de un encargado
+ *
+ */
 void *accionesEncargado(void *ptr){
 
     //El encargado esta constantemente atendiendo clientes
@@ -685,7 +713,10 @@ void *accionesEncargado(void *ptr){
     }
 }
 
-
+/**
+ * Metodo que se encarga de eliminar a un cliente de la cola y finalizar el hilo
+ *
+ */
 void eliminarCliente(int pos){
     int tipo=listaClientes[pos].tipo;
 	pthread_mutex_lock(&mutexColaClientes);
@@ -700,10 +731,18 @@ void eliminarCliente(int pos){
 	pthread_mutex_unlock(&mutexColaClientes);
 }
 
+/**
+ * Metodo que se encarga de calcular un valor entre dos numeros dados
+ *
+ */
 int calculaAleatorios(int min, int max){
     return rand() % (max-min+1) + min;
 }
 
+/**
+ * Metodo que se encarga de determinar el comportamiento de un tecnico domicialiario
+ *
+ */
 void *accionesTecnicoDomiciliario (void *ptr){
 
       while(TRUE){
@@ -751,7 +790,10 @@ void *accionesTecnicoDomiciliario (void *ptr){
     }
 }
 
-
+/**
+ * Metodo que se encarga de terminar todos las solicitudes, finalizar los hilos y el programa
+ *
+ */
 void terminar(int signal){
     char mensaje[100];
     printf("Se va a finalizar el programa.\n");
@@ -796,6 +838,10 @@ void terminar(int signal){
     exit(0);
 }
 
+/**
+ * Metodo que se encarga de escribir en los log
+ *
+ */
 void writeLogMessage(char *id, char *msg) {
     pthread_mutex_lock(&mutexFichero);
     // Calculamos la hora actual
